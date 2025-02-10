@@ -1,0 +1,120 @@
+---
+- name: Deploy K3s Cluster
+  hosts: k3s_cluster
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Set hostname
+      ansible.builtin.hostname:
+        name: "{{ inventory_hostname }}"
+        use: systemd
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Install firewall packages
+      ansible.builtin.apt:
+        name:
+          - iptables
+          - firewalld
+          - nftables
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Enable and start firewalld
+      ansible.builtin.systemd:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Configure firewall ports
+      ansible.posix.firewalld:
+        port: "{{ item.port }}/{{ item.proto }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ firewall_ports }}"
+
+  tasks:
+    - name: Create K3s directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ k3s_server_location }}"
+        - "{{ k3s_server_location }}/server"
+
+    - name: Download K3s install script
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /tmp/k3s-install.sh
+        mode: '0755'
+
+    - name: Install K3s primary server
+      ansible.builtin.shell: |
+        INSTALL_K3S_VERSION={{ k3s_version }} \
+        INSTALL_K3S_CHANNEL={{ k3s_channel }} \
+        INSTALL_K3S_EXEC="server {{ k3s_server_args | join(' ') }} --cluster-init" \
+        /tmp/k3s-install.sh
+      args:
+        creates: /usr/local/bin/k3s
+      when:
+        - k3s_type == "server"
+        - k3s_control_node | default(false)
+      register: k3s_server_install
+
+    - name: Get node token from primary server
+      ansible.builtin.slurp:
+        src: "{{ k3s_token_file }}"
+      register: node_token
+      when:
+        - k3s_type == "server"
+        - k3s_control_node | default(false)
+
+    - name: Set node token fact
+      ansible.builtin.set_fact:
+        k3s_node_token: "{{ hostvars[groups['k3s_servers'][0]]['node_token']['content'] | b64decode }}"
+      when:
+        - k3s_type == "server"
+        - not k3s_control_node | default(false)
+
+    - name: Join additional servers
+      ansible.builtin.shell: |
+        INSTALL_K3S_VERSION={{ k3s_version }} \
+        INSTALL_K3S_CHANNEL={{ k3s_channel }} \
+        K3S_TOKEN={{ k3s_node_token }} \
+        K3S_URL=https://{{ hostvars[groups['k3s_servers'][0]]['ansible_host'] }}:6443 \
+        INSTALL_K3S_EXEC="server {{ k3s_server_args | join(' ') }}" \
+        /tmp/k3s-install.sh
+      args:
+        creates: /usr/local/bin/k3s
+      when:
+        - k3s_type == "server"
+        - not k3s_control_node | default(false)
+
+    - name: Copy kubeconfig from server
+      ansible.builtin.fetch:
+        src: /etc/rancher/k3s/k3s.yaml
+        dest: "{{ lookup('env', 'HOME') }}/.kube/k3s.yml"
+        flat: true
+      when:
+        - k3s_type == "server"
+        - k3s_control_node | default(false)
+
+    - name: Update kubeconfig server address
+      ansible.builtin.lineinfile:
+        path: "{{ lookup('env', 'HOME') }}/.kube/k3s.yml"
+        regexp: '^([ \t]*)server:[ \t]*https://127\.0\.0\.1:6443'
+        line: '\1server: https://{{ hostvars[groups["k3s_servers"][0]]["ansible_host"] }}:6443'
+        backrefs: yes
+      delegate_to: localhost
+      become: false
+      run_once: true
+      when:
+        - k3s_type == "server"
+        - k3s_control_node | default(false)

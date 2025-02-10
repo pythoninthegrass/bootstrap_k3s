@@ -1,0 +1,9 @@
+k3s_version: "v1.32.1+k3s1"
+k3s_channel: stable
+
+k3s_server_args:
+  - --disable servicelb
+  - --node-taint node-role.kubernetes.io/control-plane=true:NoSchedule
+  - --tls-san {{ ansible_host }}
+
+k3s_agent_args: []

@@ -1,0 +1,9 @@
+---
+ansible-navigator:
+  # enable-prompts: True
+  mode: interactive
+  execution-environment:
+    container-engine: docker
+    image: ghcr.io/ansible/community-ansible-dev-tools
+    pull:
+      policy: missing

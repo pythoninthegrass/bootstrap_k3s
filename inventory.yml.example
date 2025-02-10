@@ -1,0 +1,29 @@
+all:
+  children:
+    k3s_cluster:
+      children:
+        k3s_servers:
+          hosts:
+            server-2:
+              ansible_host: 192.168.8.50
+              k3s_type: server
+              k3s_control_node: true
+            server-3:
+              ansible_host: 192.168.8.51
+              k3s_type: server
+            server-4:
+              ansible_host: 192.168.8.52
+              k3s_type: server
+  vars:
+    ansible_user: ubuntu
+    ansible_port: 22
+    k3s_server_location: /var/lib/rancher/k3s
+    k3s_token_file: "{{ k3s_server_location }}/server/node-token"
+    firewall_ports:
+      - { port: 6443, proto: tcp }
+      - { port: 2379, proto: tcp }
+      - { port: 2380, proto: tcp }
+      - { port: 10250, proto: tcp }
+      - { port: 8472, proto: udp }
+      - { port: 51820, proto: udp }
+      - { port: 51821, proto: udp }
