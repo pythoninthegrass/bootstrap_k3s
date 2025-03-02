@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "EditorConfig.EditorConfig",
+    "jetpack-io.devbox",
+    "jborean.ansibug",
+    "ms-python.python",
+    "redhat.ansible",
+    "redhat.vscode-yaml",
+    "ryu1kn.partial-diff",
+  ]
+}
