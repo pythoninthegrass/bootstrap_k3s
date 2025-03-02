@@ -1,6 +1,8 @@
 # ETC
+.ansible/
 facts/*
 inventory.yml
+vault.yml
 
 # General
 .DS_Store
