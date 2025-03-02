@@ -1,0 +1,9 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+#
+# {{ ansible_managed }}
+# This file is managed by Ansible. Manual edits may be lost.
+# Control node: {{ primary_control_node }} ({{ server_url }})
+# Last updated: {{ ansible_date_time.iso8601 }}
+#
+
+{{ kubeconfig_data | regex_replace('server: https://127.0.0.1:6443', 'server: https://' + server_url + ':6443') }}

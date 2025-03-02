@@ -14,16 +14,21 @@ all:
             server-4:
               ansible_host: 192.168.8.52
               k3s_type: server
+
   vars:
     ansible_user: ubuntu
     ansible_port: 22
     k3s_server_location: /var/lib/rancher/k3s
     k3s_token_file: "{{ k3s_server_location }}/server/node-token"
     firewall_ports:
-      - { port: 6443, proto: tcp }
-      - { port: 2379, proto: tcp }
-      - { port: 2380, proto: tcp }
-      - { port: 10250, proto: tcp }
-      - { port: 8472, proto: udp }
-      - { port: 51820, proto: udp }
-      - { port: 51821, proto: udp }
+      - { port: 2379, proto: tcp, comment: "Required only for HA with embedded etcd" }
+      - { port: 2380, proto: tcp, comment: "Required only for HA with embedded etcd" }
+      - { port: 5001, proto: tcp, comment: "Required only for embedded distributed registry (Spegel)" }
+      - { port: 6443, proto: tcp, comment: "K3s supervisor and Kubernetes API Server" }
+      - { port: 8472, proto: udp, comment: "Required only for Flannel VXLAN" }
+      - { port: 10250, proto: tcp, comment: "Kubelet metrics" }
+      - { port: 51820, proto: udp, comment: "Required only for Flannel Wireguard with IPv4" }
+      - { port: 51821, proto: udp, comment: "Required only for Flannel Wireguard with IPv6" }
+    firewall_networks:
+      - { network: "10.42.0.0/16", comment: "pods" }
+      - { network: "10.43.0.0/16", comment: "services" }

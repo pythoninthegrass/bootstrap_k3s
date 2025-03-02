@@ -16,7 +16,12 @@
         cache_valid_time: 3600
       when: ansible_os_family == "Debian"
 
-    - name: Install firewall packages
+    - name: Update dnf cache
+      ansible.builtin.dnf:
+        update_cache: true
+      when: ansible_os_family == "RedHat"
+
+    - name: Install firewall packages for Debian
       ansible.builtin.apt:
         name:
           - iptables
@@ -24,6 +29,14 @@
           - nftables
         state: present
       when: ansible_os_family == "Debian"
+
+    - name: Install firewall packages for RedHat
+      ansible.builtin.dnf:
+        name:
+          - firewalld
+          - nftables
+        state: present
+      when: ansible_os_family == "RedHat"
 
     - name: Enable and start firewalld
       ansible.builtin.systemd:
@@ -39,7 +52,38 @@
         state: enabled
       loop: "{{ firewall_ports }}"
 
+    - name: Configure firewall networks
+      ansible.posix.firewalld:
+        source: "{{ item.network }}"
+        zone: trusted
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ firewall_networks }}"
+
   tasks:
+    - name: Install dependencies for Debian
+      ansible.builtin.apt:
+        name:
+          - curl
+          - wireguard
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Install dependencies for RedHat
+      ansible.builtin.dnf:
+        name:
+          - curl
+          - wireguard-tools
+          - kernel-modules-extra
+        state: present
+      when: ansible_os_family == "RedHat"
+
+    - name: Load WireGuard kernel module
+      community.general.modprobe:
+        name: wireguard
+        state: present
+
     - name: Create K3s directories
       ansible.builtin.file:
         path: "{{ item }}"
@@ -55,66 +99,85 @@
         dest: /tmp/k3s-install.sh
         mode: '0755'
 
+    - name: Set combined server args
+      ansible.builtin.set_fact:
+        combined_server_args: "{{ k3s_server_args + (k3s_server_args_extra | default([])) }}"
+
+    - name: Mark if this is a control node
+      ansible.builtin.set_fact:
+        is_control_node: "{{ k3s_control_node | default(false) | bool }}"
+
+    - name: Set primary control node fact on first server
+      ansible.builtin.set_fact:
+        is_primary_control_node: true
+      when:
+        - k3s_type == "server"
+        - is_control_node
+        - inventory_hostname == ansible_play_hosts[0] or ansible_play_hosts | length == 1
+
+    - name: Debug primary control node selection
+      ansible.builtin.debug:
+        msg: "{{ inventory_hostname }} is the primary control node"
+      when: is_primary_control_node is defined and is_primary_control_node
+
     - name: Install K3s primary server
       ansible.builtin.shell: |
         INSTALL_K3S_VERSION={{ k3s_version }} \
         INSTALL_K3S_CHANNEL={{ k3s_channel }} \
-        INSTALL_K3S_EXEC="server {{ k3s_server_args | join(' ') }} --cluster-init" \
+        INSTALL_K3S_EXEC="server {{ combined_server_args | join(' ') }} --cluster-init" \
         /tmp/k3s-install.sh
       args:
         creates: /usr/local/bin/k3s
-      when:
-        - k3s_type == "server"
-        - k3s_control_node | default(false)
+      when: is_primary_control_node is defined and is_primary_control_node
       register: k3s_server_install
 
     - name: Get node token from primary server
       ansible.builtin.slurp:
         src: "{{ k3s_token_file }}"
-      register: node_token
-      when:
-        - k3s_type == "server"
-        - k3s_control_node | default(false)
+      register: node_token_data
+      when: is_primary_control_node is defined and is_primary_control_node
 
     - name: Set node token fact
       ansible.builtin.set_fact:
-        k3s_node_token: "{{ hostvars[groups['k3s_servers'][0]]['node_token']['content'] | b64decode }}"
+        primary_control_node: "{{ item }}"
+        node_token: "{{ hostvars[item]['node_token_data']['content'] | b64decode }}"
       when:
-        - k3s_type == "server"
-        - not k3s_control_node | default(false)
+        - hostvars[item]['is_primary_control_node'] is defined
+        - hostvars[item]['is_primary_control_node']
+        - hostvars[item]['node_token_data'] is defined
+      loop: "{{ ansible_play_hosts }}"
 
     - name: Join additional servers
       ansible.builtin.shell: |
+        set -o pipefail
         INSTALL_K3S_VERSION={{ k3s_version }} \
         INSTALL_K3S_CHANNEL={{ k3s_channel }} \
-        K3S_TOKEN={{ k3s_node_token }} \
-        K3S_URL=https://{{ hostvars[groups['k3s_servers'][0]]['ansible_host'] }}:6443 \
-        INSTALL_K3S_EXEC="server {{ k3s_server_args | join(' ') }}" \
+        K3S_TOKEN={{ node_token }} \
+        K3S_URL=https://{{ hostvars[primary_control_node]['ansible_host'] }}:6443 \
+        INSTALL_K3S_EXEC="server {{ combined_server_args | join(' ') }}" \
         /tmp/k3s-install.sh
       args:
         creates: /usr/local/bin/k3s
       when:
         - k3s_type == "server"
-        - not k3s_control_node | default(false)
+        - not (is_primary_control_node is defined and is_primary_control_node)
+        - primary_control_node is defined
+        - node_token is defined
 
-    - name: Copy kubeconfig from server
-      ansible.builtin.fetch:
+    - name: Get kubeconfig content from primary server
+      ansible.builtin.slurp:
         src: /etc/rancher/k3s/k3s.yaml
-        dest: "{{ lookup('env', 'HOME') }}/.kube/k3s.yml"
-        flat: true
-      when:
-        - k3s_type == "server"
-        - k3s_control_node | default(false)
+      register: kubeconfig_content
+      when: is_primary_control_node is defined and is_primary_control_node
 
-    - name: Update kubeconfig server address
-      ansible.builtin.lineinfile:
-        path: "{{ lookup('env', 'HOME') }}/.kube/k3s.yml"
-        regexp: '^([ \t]*)server:[ \t]*https://127\.0\.0\.1:6443'
-        line: '\1server: https://{{ hostvars[groups["k3s_servers"][0]]["ansible_host"] }}:6443'
-        backrefs: yes
+    - name: Create local kubeconfig with managed block
+      ansible.builtin.template:
+        src: k3s.yml.j2
+        dest: "{{ lookup('env', 'HOME') }}/.kube/k3s.yml"
+        mode: '0600'
+      vars:
+        kubeconfig_data: "{{ kubeconfig_content.content | b64decode }}"
+        server_url: "{{ hostvars[primary_control_node]['ansible_host'] }}"
       delegate_to: localhost
       become: false
-      run_once: true
-      when:
-        - k3s_type == "server"
-        - k3s_control_node | default(false)
+      when: is_primary_control_node is defined and is_primary_control_node

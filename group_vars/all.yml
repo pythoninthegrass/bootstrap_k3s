@@ -1,9 +1,15 @@
 k3s_version: "v1.32.1+k3s1"
 k3s_channel: stable
 
-k3s_server_args:
+k3s_base_server_args:
   - --disable servicelb
   - --node-taint node-role.kubernetes.io/control-plane=true:NoSchedule
   - --tls-san {{ ansible_host }}
+  - --cluster-cidr 10.42.0.0/16
+  - --service-cidr 10.43.0.0/16
+  - --flannel-backend wireguard
+  - --flannel-external-ip
+
+k3s_server_args: "{{ k3s_base_server_args + k3s_server_args_extra|default([]) }}"
 
 k3s_agent_args: []
