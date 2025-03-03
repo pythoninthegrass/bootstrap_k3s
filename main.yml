@@ -3,6 +3,8 @@
   hosts: k3s_cluster
   become: true
   gather_facts: true
+  vars_files:
+    - vault.yml
 
   pre_tasks:
     - name: Set hostname
@@ -67,6 +69,7 @@
         name:
           - curl
           - wireguard
+          - wireguard-tools  # Add wireguard-tools package
         state: present
       when: ansible_os_family == "Debian"
 
@@ -76,6 +79,7 @@
           - curl
           - wireguard-tools
           - kernel-modules-extra
+          - wireguard-dkms  # Add wireguard-dkms package
         state: present
       when: ansible_os_family == "RedHat"
 
@@ -83,6 +87,18 @@
       community.general.modprobe:
         name: wireguard
         state: present
+      register: wireguard_module_load
+      failed_when: false  # Don't fail if module can't be loaded
+
+    - name: Check if WireGuard module is loaded
+      ansible.builtin.command: lsmod | grep wireguard
+      register: wireguard_loaded
+      changed_when: false
+      failed_when: false
+
+    - name: Debug WireGuard module status
+      ansible.builtin.debug:
+        msg: "WireGuard module status: {{ 'LOADED' if wireguard_loaded.rc == 0 else 'NOT LOADED' }}"
 
     - name: Create K3s directories
       ansible.builtin.file:
@@ -98,6 +114,10 @@
         url: https://get.k3s.io
         dest: /tmp/k3s-install.sh
         mode: '0755'
+
+    - name: Set default k3s_server_args if not defined
+      ansible.builtin.set_fact:
+        k3s_server_args: "{{ k3s_server_args | default(['--flannel-backend=vxlan']) }}"  # Set vxlan as default
 
     - name: Set combined server args
       ansible.builtin.set_fact:
