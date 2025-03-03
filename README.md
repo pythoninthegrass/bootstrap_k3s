@@ -2,6 +2,15 @@
 
 Alternative to [k3sup](https://github.com/alexellis/k3sup) for deploying k3s clusters with Ansible.
 
+## Minimum requirements
+
+* [Python 3.11+](https://www.python.org/downloads/)
+* [Skate](https://github.com/charmbracelet/skate)
+
+## Recommended requirements
+
+* [Devbox](https://www.jetify.com/docs/devbox/installing_devbox/)
+
 ## Setup
 
 Create a virtual environment and install the requirements:
