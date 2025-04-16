@@ -67,6 +67,9 @@
     - name: Install dependencies for Debian
       ansible.builtin.apt:
         name:
+          - build-essential
+          - ca-certificates
+          - git
           - curl
           - wireguard
           - wireguard-tools  # Add wireguard-tools package
