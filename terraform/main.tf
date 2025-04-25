@@ -7,7 +7,7 @@ data "incus_profile" "vm_profile" {
 resource "incus_instance" "control_plane" {
   count = var.large_instances
   name  = "control-plane-${count.index + 1}"
-  image = var.vm_image
+  image = "images:${var.vm_image}"
   type  = "virtual-machine"
 
   config = {
@@ -42,7 +42,7 @@ resource "incus_instance" "control_plane" {
 resource "incus_instance" "worker" {
   count = var.medium_instances
   name  = "worker-${count.index + 1}"
-  image = var.vm_image
+  image = "images:${var.vm_image}"
   type  = "virtual-machine"
 
   config = {
