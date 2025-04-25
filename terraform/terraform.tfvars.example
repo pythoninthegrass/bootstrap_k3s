@@ -1,0 +1,18 @@
+# Host configuration
+incus_server     = "incus.example.com"
+incus_host       = "10.5.165.14"
+incus_port       = 8443
+incus_scheme     = "https"
+
+# VM configuration
+vm_image        = "ubuntu:24.04"
+vm_profile_name = "vm-profile"
+storage_pool    = "default-vm"
+disk_size       = "30GB"
+network_adapter = "incusbr0"
+
+# Instance specifications
+large_cpu     = 2
+large_memory  = 8
+medium_cpu    = 2
+medium_memory = 4
