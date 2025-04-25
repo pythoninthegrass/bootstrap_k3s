@@ -12,7 +12,14 @@ provider "incus" {
   accept_remote_certificate    = true
 
   remote {
+    name    = "local"
+    scheme  = "unix"
+    address = ""
     default = true
+  }
+
+  remote {
+    default = false
     name    = var.incus_server
     address = var.incus_address
     port    = var.incus_port
