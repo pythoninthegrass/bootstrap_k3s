@@ -1,5 +1,5 @@
 {
-  "devbox.autoShellOnTerminal": true,
+  "devbox.autoShellOnTerminal": false,
   "[python]": {
     "editor.insertSpaces": true,
     "editor.tabSize": 4,
