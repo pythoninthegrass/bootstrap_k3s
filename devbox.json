@@ -16,6 +16,7 @@
     "gnumake":         "latest",
     "go-task":         "latest",
     "skate":           "latest",
+    "tenv":            "latest",
     "uv":              "latest"
   },
   "env": {
@@ -23,7 +24,6 @@
     "UV_HTTP_TIMEOUT": "90",
     "UV_COMPILE_BYTECODE": "1",
     "UV_LINK_MODE": "copy",
-    "DOPPLER_ENABLE_VERSION_CHECK": "false",
     "LANG": "en_US.UTF-8",
     "LC_ALL": "en_US.UTF-8",
     "LANGUAGE": "en_US.UTF-8"
