@@ -21,7 +21,7 @@ resource "incus_instance" "control_plane" {
     type = "nic"
     properties = {
       "network" = var.network_adapter
-      "name" = "eth0"
+      "name"    = "eth0"
     }
   }
 
@@ -56,7 +56,7 @@ resource "incus_instance" "worker" {
     type = "nic"
     properties = {
       "network" = var.network_adapter
-      "name" = "eth0"
+      "name"    = "eth0"
     }
   }
 
