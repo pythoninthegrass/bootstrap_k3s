@@ -1,0 +1,154 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+require 'erb'
+require 'fileutils'
+
+# Load environment variables from .env file
+begin
+  open(".env", "r").readlines.each do |l|
+    kv = l.split("=")
+    if kv[1] != nil
+      # Strip quotes from environment variable values
+      ENV[kv[0]] = kv[1].strip.gsub(/^['"]|['"]$/, '')
+    end
+  end
+rescue
+  # .env file might not exist
+end
+
+# Configuration parameters with defaults
+LIBVIRT_URI = ENV["LIBVIRT_URI"] || "qemu:///system"
+NETWORK_NAME = ENV["NETWORK_NAME"] || "k8s_network"
+BASE_IP = ENV["BASE_IP"] || "192.168.56"
+# IP allocation:
+# - Control planes: 192.168.56.10 to 192.168.56.19
+# - Workers: 192.168.56.20 to 192.168.56.29
+CONTROL_PLANE_IP_START = 10
+WORKER_IP_START = 20
+CONTROL_PLANE_COUNT = (ENV["CONTROL_PLANE_COUNT"] || "3").to_i
+WORKER_COUNT = (ENV["WORKER_COUNT"] || "1").to_i
+MEMORY_CONTROL = (ENV["MEMORY_CONTROL"] || "2048").to_i
+MEMORY_WORKER = (ENV["MEMORY_WORKER"] || "4096").to_i
+CPU_CONTROL = (ENV["CPU_CONTROL"] || "2").to_i
+CPU_WORKER = (ENV["CPU_WORKER"] || "2").to_i
+DISK_SIZE = (ENV["DISK_SIZE"] || "32").to_i
+KUBECTL_VERSION = ENV["KUBECTL_VERSION"] || "1.33.0"
+K8S_VERSION = ENV["K8S_VERSION"] || "1.33.0"
+DEST_DIR_BASE = "/vagrant"
+
+# Generate MAC from IP last octet
+def generate_mac(ip_last_octet)
+  # Using the libvirt MAC prefix 52:54:00 followed by :00:00:XX where XX is the IP last octet
+  sprintf("52:54:00:00:00:%02x", ip_last_octet)
+end
+
+# Function to generate network XML
+def generate_network_xml
+  xml_template = <<-EOF
+<network>
+  <name><%= NETWORK_NAME %></name>
+  <forward mode='nat'>
+    <nat>
+      <port start='1024' end='65535'/>
+    </nat>
+  </forward>
+  <bridge name='virbr1' stp='on' delay='0'/>
+  <ip address='<%= BASE_IP %>.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='<%= BASE_IP %>.100' end='<%= BASE_IP %>.254'/>
+      <!-- Control plane nodes -->
+<% (1..CONTROL_PLANE_COUNT).each do |i| -%>
+      <host mac='<%= generate_mac(CONTROL_PLANE_IP_START + i - 1) %>' name='control-plane-<%= i %>' ip='<%= BASE_IP %>.<%= CONTROL_PLANE_IP_START + i - 1 %>'/>
+<% end -%>
+      <!-- Worker nodes -->
+<% (1..WORKER_COUNT).each do |i| -%>
+      <host mac='<%= generate_mac(WORKER_IP_START + i - 1) %>' name='worker-<%= i %>' ip='<%= BASE_IP %>.<%= WORKER_IP_START + i - 1 %>'/>
+<% end -%>
+    </dhcp>
+  </ip>
+</network>
+  EOF
+
+  # Process the template with binding
+  template = ERB.new(xml_template, trim_mode: '-')
+  template.result(binding)
+end
+
+# Generate the network XML file
+network_xml_path = "#{NETWORK_NAME}.xml"
+
+# Write the XML to file, ensuring there are no double quotes in the output
+xml_content = generate_network_xml
+# Remove any potential double-quoted strings that might have been introduced
+xml_content = xml_content.gsub(/''/, "'")
+File.write(network_xml_path, xml_content)
+
+# Create or verify the libvirt network
+system("virsh net-info #{NETWORK_NAME} >/dev/null 2>&1 || virsh net-define #{network_xml_path}")
+system("virsh net-autostart #{NETWORK_NAME}")
+system("virsh net-start #{NETWORK_NAME} 2>/dev/null || true")
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "cloud-image/ubuntu-24.04"
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  # Eventually use cloud-init to execute jobs
+  config.vm.cloud_init do |cloud_init|
+    cloud_init.content_type = "text/cloud-config"
+    cloud_init.inline = <<-EOF
+      package_update: true
+      packages:
+        - ansible
+    EOF
+  end
+
+  # Common provider configuration
+  config.vm.provider :libvirt do |libvirt|
+    libvirt.driver = "kvm"
+    libvirt.uri = "qemu:///system"
+    libvirt.qemu_use_session = false
+    # Completely disable management network
+    libvirt.mgmt_attach = false
+  end
+
+  # Create control plane nodes
+  (1..CONTROL_PLANE_COUNT).each do |i|
+    config.vm.define "control-plane-#{i}" do |node|
+      node.vm.hostname = "control-plane-#{i}"
+      ip_last_octet = CONTROL_PLANE_IP_START + i - 1
+
+      # Define network interfaces explicitly, primary is our k8s network
+      node.vm.network :private_network,
+                      :mac => generate_mac(ip_last_octet),
+                      :libvirt__network_name => NETWORK_NAME,
+                      :libvirt__dhcp_enabled => true
+
+      node.vm.provider :libvirt do |lv|
+        lv.memory = MEMORY_CONTROL
+        lv.cpus = CPU_CONTROL
+        lv.storage :file, :size => "#{DISK_SIZE}G"
+      end
+    end
+  end
+
+  # Create worker nodes
+  (1..WORKER_COUNT).each do |i|
+    config.vm.define "worker-#{i}" do |node|
+      node.vm.hostname = "worker-#{i}"
+      ip_last_octet = WORKER_IP_START + i - 1
+
+      # Define network interfaces explicitly, primary is our k8s network
+      node.vm.network :private_network,
+                      :mac => generate_mac(ip_last_octet),
+                      :libvirt__network_name => NETWORK_NAME,
+                      :libvirt__dhcp_enabled => true
+
+      node.vm.provider :libvirt do |lv|
+        lv.memory = MEMORY_WORKER
+        lv.cpus = CPU_WORKER
+        lv.storage :file, :size => "#{DISK_SIZE}G"
+      end
+    end
+  end
+end

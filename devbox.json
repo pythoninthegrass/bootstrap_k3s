@@ -16,7 +16,6 @@
     "gnumake":         "latest",
     "go-task":         "latest",
     "skate":           "latest",
-    "tenv":            "latest",
     "uv":              "latest"
   },
   "env": {
