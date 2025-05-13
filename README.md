@@ -6,6 +6,7 @@ Alternative to [k3sup](https://github.com/alexellis/k3sup) for deploying k3s clu
 
 * [Python 3.11+](https://www.python.org/downloads/)
 * [Skate](https://github.com/charmbracelet/skate)
+* [Vagrant](https://www.vagrantup.com/downloads)
 
 ## Recommended requirements
 
