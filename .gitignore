@@ -1,6 +1,7 @@
 # ETC
 .ansible/
 facts/*
+k8s_network.xml
 inventory.yml
 vault.yml
 
