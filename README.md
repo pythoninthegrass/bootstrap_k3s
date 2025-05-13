@@ -16,9 +16,16 @@ Alternative to [k3sup](https://github.com/alexellis/k3sup) for deploying k3s clu
 Create a virtual environment and install the requirements:
 
 ```bash
+# python only
 python -m venv .venv
-source .venv/bin/activate
 python -m pip install -r requirements.txt
+
+# uv
+uv venv
+source .venv/bin/activate
+uv pip install -r pyproject.toml
+
+# ansible
 ansible-galaxy collection install -r requirements.yml
 ```
 
