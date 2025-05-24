@@ -11,7 +11,7 @@ requires-python = ">=3.11,<3.13"
 dependencies = [
     "ansible-builder==3.1.0",
     "ansible-compat==25.1.2",
-    "ansible-core==2.18.2",
+    "ansible-core==2.18.6",
     "ansible-creator==25.0.0",
     "ansible-dev-environment==25.1.0",
     "ansible-dev-tools==25.2.0",
