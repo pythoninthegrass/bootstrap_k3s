@@ -18,6 +18,8 @@ rescue
 end
 
 # Configuration parameters with defaults
+USE_BRIDGE_NETWORK = (ENV["USE_BRIDGE_NETWORK"] || "true").downcase == "true"
+BRIDGE_INTERFACE = ENV["BRIDGE_INTERFACE"] || "eno1"
 LIBVIRT_URI = ENV["LIBVIRT_URI"] || "qemu:///system"
 NETWORK_NAME = ENV["NETWORK_NAME"] || "k8s_network"
 BASE_IP = ENV["BASE_IP"] || "192.168.56"
@@ -43,9 +45,11 @@ def generate_mac(ip_last_octet)
   sprintf("52:54:00:00:00:%02x", ip_last_octet)
 end
 
-# Function to generate network XML
-def generate_network_xml
-  xml_template = <<-EOF
+# Only generate and setup the NAT network if we're not using bridge mode
+if !USE_BRIDGE_NETWORK
+  # Function to generate network XML
+  def generate_network_xml
+    xml_template = <<-EOF
 <network>
   <name><%= NETWORK_NAME %></name>
   <forward mode='nat'>
@@ -68,26 +72,27 @@ def generate_network_xml
     </dhcp>
   </ip>
 </network>
-  EOF
+    EOF
 
-  # Process the template with binding
-  template = ERB.new(xml_template, trim_mode: '-')
-  template.result(binding)
+    # Process the template with binding
+    template = ERB.new(xml_template, trim_mode: '-')
+    template.result(binding)
+  end
+
+  # Generate the network XML file
+  network_xml_path = "#{NETWORK_NAME}.xml"
+
+  # Write the XML to file, ensuring there are no double quotes in the output
+  xml_content = generate_network_xml
+  # Remove any potential double-quoted strings that might have been introduced
+  xml_content = xml_content.gsub(/''/, "'")
+  File.write(network_xml_path, xml_content)
+
+  # Create or verify the libvirt network
+  system("virsh net-info #{NETWORK_NAME} >/dev/null 2>&1 || virsh net-define #{network_xml_path}")
+  system("virsh net-autostart #{NETWORK_NAME}")
+  system("virsh net-start #{NETWORK_NAME} 2>/dev/null || true")
 end
-
-# Generate the network XML file
-network_xml_path = "#{NETWORK_NAME}.xml"
-
-# Write the XML to file, ensuring there are no double quotes in the output
-xml_content = generate_network_xml
-# Remove any potential double-quoted strings that might have been introduced
-xml_content = xml_content.gsub(/''/, "'")
-File.write(network_xml_path, xml_content)
-
-# Create or verify the libvirt network
-system("virsh net-info #{NETWORK_NAME} >/dev/null 2>&1 || virsh net-define #{network_xml_path}")
-system("virsh net-autostart #{NETWORK_NAME}")
-system("virsh net-start #{NETWORK_NAME} 2>/dev/null || true")
 
 Vagrant.configure("2") do |config|
   config.vm.box = "cloud-image/ubuntu-24.04"
@@ -108,7 +113,8 @@ Vagrant.configure("2") do |config|
     libvirt.driver = "kvm"
     libvirt.uri = "qemu:///system"
     libvirt.qemu_use_session = false
-    # Completely disable management network
+
+    # Disable management network only if we're using our own network configurations
     libvirt.mgmt_attach = false
   end
 
@@ -118,11 +124,20 @@ Vagrant.configure("2") do |config|
       node.vm.hostname = "control-plane-#{i}"
       ip_last_octet = CONTROL_PLANE_IP_START + i - 1
 
-      # Define network interfaces explicitly, primary is our k8s network
-      node.vm.network :private_network,
-                      :mac => generate_mac(ip_last_octet),
-                      :libvirt__network_name => NETWORK_NAME,
-                      :libvirt__dhcp_enabled => true
+      if USE_BRIDGE_NETWORK
+        # Use bridged networking
+        node.vm.network :public_network,
+                       :dev => BRIDGE_INTERFACE,
+                       :mac => generate_mac(ip_last_octet),
+                       :mode => "bridge",
+                       :type => "bridge"
+      else
+        # Define network interfaces explicitly, primary is our k8s network
+        node.vm.network :private_network,
+                        :mac => generate_mac(ip_last_octet),
+                        :libvirt__network_name => NETWORK_NAME,
+                        :libvirt__dhcp_enabled => true
+      end
 
       node.vm.provider :libvirt do |lv|
         lv.memory = MEMORY_CONTROL
@@ -138,11 +153,20 @@ Vagrant.configure("2") do |config|
       node.vm.hostname = "worker-#{i}"
       ip_last_octet = WORKER_IP_START + i - 1
 
-      # Define network interfaces explicitly, primary is our k8s network
-      node.vm.network :private_network,
-                      :mac => generate_mac(ip_last_octet),
-                      :libvirt__network_name => NETWORK_NAME,
-                      :libvirt__dhcp_enabled => true
+      if USE_BRIDGE_NETWORK
+        # Use bridged networking
+        node.vm.network :public_network,
+                       :dev => BRIDGE_INTERFACE,
+                       :mac => generate_mac(ip_last_octet),
+                       :mode => "bridge",
+                       :type => "bridge"
+      else
+        # Define network interfaces explicitly, primary is our k8s network
+        node.vm.network :private_network,
+                        :mac => generate_mac(ip_last_octet),
+                        :libvirt__network_name => NETWORK_NAME,
+                        :libvirt__dhcp_enabled => true
+      end
 
       node.vm.provider :libvirt do |lv|
         lv.memory = MEMORY_WORKER
