@@ -1,8 +1,9 @@
 # ETC
 .ansible/
+**/settings.local.json
 facts/*
-k8s_network.xml
 inventory.yml
+k8s_network.xml
 vault.yml
 
 # General
@@ -243,7 +244,7 @@ override.tf.json
 # !example_override.tf
 
 # Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
+*tfplan*
 
 # Ignore CLI configuration files
 .terraformrc
