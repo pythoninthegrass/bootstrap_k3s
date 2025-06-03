@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a k3s cluster bootstrap project that combines Terraform for infrastructure provisioning and Ansible for cluster configuration. It provides an alternative to k3sup for deploying high-availability k3s clusters with two deployment options: libvirt/KVM VMs or Vagrant.
+This is a k3s cluster bootstrap project that combines Terraform for infrastructure provisioning and Ansible for cluster configuration. It provides an alternative to k3sup for deploying high-availability k3s clusters with two deployment options: libvirt/KVM VMs.
 
 ## Architecture
 
@@ -12,7 +12,6 @@ The project follows a layered approach:
 
 - **Infrastructure Layer** (Terraform): Provisions libvirt/KVM VMs with cloud-init
 - **Configuration Layer** (Ansible): Deploys k3s cluster with embedded etcd and WireGuard networking
-- **Alternative Deployment** (Vagrant): Alternative VM provisioning method
 
 ## LLM Instructions
 
@@ -84,16 +83,6 @@ ansible-playbook -i inventory.yml uninstall.yml
 
 # Test connectivity
 ansible all -i inventory.yml -m ping
-```
-
-### Vagrant Alternative
-
-Vagrant will eventually be removed. Terraform uses similar logic to provision VMs.
-
-```bash
-cd vagrant/
-vagrant up
-vagrant destroy -f
 ```
 
 ## Key Configuration Files

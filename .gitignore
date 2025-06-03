@@ -3,7 +3,6 @@
 **/settings.local.json
 facts/*
 inventory.yml
-k8s_network.xml
 vault.yml
 
 # General
@@ -208,9 +207,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-
-# vagrant
-.vagrant/
 
 # Local .terraform directories
 .terraform/
