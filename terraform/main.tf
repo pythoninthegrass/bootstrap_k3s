@@ -10,8 +10,8 @@ locals {
   mac_addresses = merge(
     {
       for i in range(1, var.control_plane_count + 1) :
-      "node-${i}" => format("52:54:00:%02x:%02x:%02x", 
-        10 + i - 1,  # Use the IP last octet for MAC
+      "node-${i}" => format("52:54:00:%02x:%02x:%02x",
+        10 + i - 1, # Use the IP last octet for MAC
         0,
         i
       )
@@ -19,7 +19,7 @@ locals {
     {
       for i in range(1, var.worker_count + 1) :
       "node-${var.control_plane_count + i}" => format("52:54:00:%02x:%02x:%02x",
-        20 + i - 1,  # Use the IP last octet for MAC
+        20 + i - 1, # Use the IP last octet for MAC
         1,
         i
       )
