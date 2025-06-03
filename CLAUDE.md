@@ -14,6 +14,16 @@ The project follows a layered approach:
 - **Configuration Layer** (Ansible): Deploys k3s cluster with embedded etcd and WireGuard networking
 - **Alternative Deployment** (Vagrant): Alternative VM provisioning method
 
+## LLM Instructions
+
+When working with Terraform in this repository, the LLM should:
+
+- Never run Terraform commands (`terraform init`, `terraform plan`, `terraform apply`, etc.) without explicit user request
+  - An exception is to always run `terraform validate` before proposing any Terraform code changes to ensure the configuration is valid
+- Only suggest Terraform commands and wait for user approval before executing them
+- Explain the purpose and potential impact of any suggested Terraform commands
+- Follow linting rules (e.g., `terraform fmt`, `.editorconfig`, `.markdownlint.jsonc`, etc.)
+
 ## Common Development Commands
 
 ### Environment Setup
@@ -88,3 +98,13 @@ vagrant destroy -f
 - k3s is configured with WireGuard backend and embedded etcd for HA
 - Both bridge and NAT networking modes are supported
 - Cloud-init handles initial VM setup before Ansible takes over
+
+## LLM Online Resources
+
+When working with this codebase, the following online resources should be considered as known:
+
+- [Terraform Libvirt Provider Documentation](https://registry.terraform.io/providers/dmacvicar/libvirt/latest/docs) - Official documentation for the libvirt provider
+- [Terraform Libvirt Provider GitHub Repository](https://github.com/dmacvicar/terraform-provider-libvirt) - Source code and examples for the libvirt provider
+- [Libvirt Documentation](https://libvirt.org/docs.html) - Official libvirt documentation and guides
+
+These resources should be treated as known and available for reference when working with the codebase.
