@@ -1,0 +1,12 @@
+libvirt_uri         = "qemu:///system"
+control_plane_count = 3
+worker_count        = 1
+memory_control      = 2048
+memory_worker       = 4096
+cpu_control         = 2
+cpu_worker          = 2
+disk_size           = 32
+base_ip             = "192.168.56"
+network_name        = "k8s_network"
+use_bridge_network  = false
+ssh_public_key      = "ssh-rsa AAAAB..."
