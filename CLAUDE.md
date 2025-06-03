@@ -40,6 +40,26 @@ ansible-galaxy collection install -r requirements.yml
 export ANSIBLE_VAULT_PASSWORD_FILE=$(skate get ansible_vault_password)
 ```
 
+### Remote libvirt server checks
+
+Assuming that the remote libvirt host is aliased as `dev` in `~/.ssh/config` and the network name is `k8s_network`, these commands can be used to check the status of the VMs from a local machine.
+
+Note that the `qemu:///system` URI is needed to connect to the remote libvirt hypervisor. Without it, `virsh` returns empty results.
+
+```bash
+# List all VMs on remote libvirt host
+ssh dev "virsh -c qemu:///system list --all"
+
+# Check dhcp leases
+ssh dev "virsh -c qemu:///system net-dhcp-leases k8s_network"
+
+# Check VM status
+ssh dev "virsh -c qemu:///system dominfo node-1"
+
+# View VM console
+ssh dev "virsh -c qemu:///system console node-1"
+```
+
 ### Terraform Workflow
 
 ```bash
