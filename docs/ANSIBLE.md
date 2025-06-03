@@ -75,7 +75,7 @@ You can use the vault in two ways:
 
     ```bash
     # Set the ANSIBLE_VAULT_PASSWORD_FILE environment variable
-    export ANSIBLE_VAULT_PASSWORD_FILE=$(./scripts/ansible_vault_password.sh)
+    export ANSIBLE_VAULT_PASSWORD_FILE="./scripts/ansible_vault_password.sh"
 
     # Now you can run ansible commands without specifying the vault-password-file flag
     ansible-playbook -i inventory.yml main.yml
@@ -88,7 +88,7 @@ You can use the vault in two ways:
 
     ```bash
     # Run playbooks using the vault password from skate
-    ansible-playbook -i inventory.yml main.yml --vault-password-file <(skate get ansible_vault_password)
+    ansible-playbook -i inventory.yml main.yml --vault-password-file ./scripts/ansible_vault_password.sh
     ```
 
 ### Editing the Vault
@@ -100,7 +100,7 @@ To edit the encrypted vault file:
 ansible-vault edit vault.yml
 
 # Or explicitly specify the vault password:
-ansible-vault edit vault.yml --vault-password-file <(skate get ansible_vault_password)
+ansible-vault edit vault.yml --vault-password-file ./scripts/ansible_vault_password.sh
 ```
 
 ## Usage
