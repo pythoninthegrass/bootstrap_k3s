@@ -17,7 +17,7 @@ locals {
   mac_addresses = {
     for i in range(var.control_plane_count + var.worker_count) :
     "node-${i + 1}" => format("52:54:00:%s", 
-      substr(replace(hexencode(random_bytes.mac[i].result), "/(..)(..)(..)$/", "$1:$2:$3"), 0, 8)
+      substr(replace(nonsensitive(random_bytes.mac[i].hex), "/(..)(..)(..)$/", "$1:$2:$3"), 0, 8)
     )
   }
 }
