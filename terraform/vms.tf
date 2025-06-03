@@ -1,13 +1,11 @@
 # Cloud-init configuration
-data "template_file" "cloud_init" {
-  for_each = local.all_nodes
-
-  template = file("${path.module}/cloud-init/user-data.yaml.tpl")
-
-  vars = {
-    hostname       = each.value.hostname
-    fqdn           = "${each.value.hostname}.local"
-    ssh_public_key = var.ssh_public_key
+locals {
+  cloud_init_configs = {
+    for k, v in local.all_nodes : k => templatefile("${path.module}/cloud-init/user-data.yaml.tpl", {
+      hostname       = v.hostname
+      fqdn           = "${v.hostname}.local"
+      ssh_public_key = var.ssh_public_key
+    })
   }
 }
 
@@ -28,7 +26,7 @@ resource "libvirt_cloudinit_disk" "node_cloudinit" {
 
   name      = "${each.value.hostname}-cloudinit.iso"
   pool      = var.storage_pool
-  user_data = data.template_file.cloud_init[each.key].rendered
+  user_data = local.cloud_init_configs[each.key]
 }
 
 # VM domains

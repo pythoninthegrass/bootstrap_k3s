@@ -6,12 +6,10 @@ manage_etc_hosts: true
 package_update: true
 packages:
   - ansible
+  - build-essential
+  - ca-certificates
   - curl
   - git
-  - ca-certificates
-  - wireguard
-  - wireguard-tools
-  - build-essential
 
 users:
   - default

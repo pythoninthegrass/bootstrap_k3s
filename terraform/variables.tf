@@ -93,7 +93,7 @@ locals {
       index     = i
       hostname  = "control-plane-${i}"
       ip        = "${var.base_ip}.${local.control_plane_ip_start + i - 1}"
-      mac       = format("52:54:00:00:00:%02x", local.control_plane_ip_start + i - 1)
+      mac       = local.mac_addresses["node-${i}"]
       memory    = var.memory_control
       vcpu      = var.cpu_control
       disk_size = var.disk_size
@@ -106,7 +106,7 @@ locals {
       index     = i
       hostname  = "worker-${i}"
       ip        = "${var.base_ip}.${local.worker_ip_start + i - 1}"
-      mac       = format("52:54:00:00:00:%02x", local.worker_ip_start + i - 1)
+      mac       = local.mac_addresses["node-${var.control_plane_count + i}"]
       memory    = var.memory_worker
       vcpu      = var.cpu_worker
       disk_size = var.disk_size

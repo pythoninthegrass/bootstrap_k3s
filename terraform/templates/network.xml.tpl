@@ -6,6 +6,11 @@
     </nat>
   </forward>
   <bridge name='virbr1' stp='on' delay='0'/>
+  <domain name='k3s.local'/>
+  <dns>
+    <forwarder domain='.' addr='8.8.8.8'/>
+    <forwarder domain='.' addr='8.8.4.4'/>
+  </dns>
   <ip address='${base_ip}.1' netmask='255.255.255.0'>
     <dhcp>
       <range start='${base_ip}.100' end='${base_ip}.254'/>

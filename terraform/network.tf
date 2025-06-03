@@ -8,21 +8,21 @@ resource "libvirt_network" "k8s_network" {
   bridge    = "virbr1"
 
   xml {
-    xslt = file("${path.module}/templates/network.xsl")
+    content = templatefile("${path.module}/templates/network.xml.tpl", {
+      network_name = var.network_name
+      base_ip      = var.base_ip
+      nodes        = local.all_nodes
+    })
   }
 }
 
 # Alternative: Direct XML definition
-data "template_file" "network_config" {
-  count = var.use_bridge_network ? 0 : 1
-
-  template = file("${path.module}/templates/network.xml.tpl")
-
-  vars = {
+locals {
+  network_config = var.use_bridge_network ? "" : templatefile("${path.module}/templates/network.xml.tpl", {
     network_name = var.network_name
     base_ip      = var.base_ip
     nodes        = jsonencode(local.all_nodes)
-  }
+  })
 }
 
 resource "libvirt_network" "k8s_network_xml" {
@@ -33,6 +33,6 @@ resource "libvirt_network" "k8s_network_xml" {
   autostart = true
 
   xml {
-    xslt = data.template_file.network_config[0].rendered
+    xslt = local.network_config
   }
 }
