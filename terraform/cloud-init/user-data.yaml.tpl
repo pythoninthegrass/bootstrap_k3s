@@ -21,6 +21,10 @@ users:
     ssh_authorized_keys:
       - ${ssh_public_key}
 %{ endif ~}
+%{ if github_user != "" ~}
+    ssh_import_id:
+      - gh:${github_user}
+%{ endif ~}
 
 # Enable SSH password authentication (disable in production)
 ssh_pwauth: true

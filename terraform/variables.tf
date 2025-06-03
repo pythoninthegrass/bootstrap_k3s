@@ -82,6 +82,12 @@ variable "ssh_public_key" {
   default     = ""
 }
 
+variable "github_user" {
+  description = "GitHub username to import SSH keys from (e.g. 'pythoninthegrass' will import from https://github.com/pythoninthegrass.keys)"
+  type        = string
+  default     = ""
+}
+
 # Local variables for node generation
 locals {
   control_plane_ip_start = 10

@@ -5,6 +5,7 @@ locals {
       hostname       = v.hostname
       fqdn           = "${v.hostname}.local"
       ssh_public_key = var.ssh_public_key
+      github_user    = var.github_user
     })
   }
 }
