@@ -13,8 +13,19 @@ resource "libvirt_network" "k8s_network" {
   name      = var.network_name
   mode      = "nat"
   autostart = true
+  addresses = ["${var.base_ip}.0/24"]
 
-  xml {
-    xslt = local.network_config
+  dhcp {
+    enabled = true
+  }
+
+  dns {
+    enabled = true
+    forwarders {
+      address = "8.8.8.8"
+    }
+    forwarders {
+      address = "8.8.4.4"
+    }
   }
 }
