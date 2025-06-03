@@ -88,7 +88,7 @@ You can use the vault in two ways:
 
     ```bash
     # Run playbooks using the vault password from skate
-    ansible-playbook -i inventory.yml main.yml --vault-password-file <(skate list ansible_vault_password -v)
+    ansible-playbook -i inventory.yml main.yml --vault-password-file <(skate get ansible_vault_password)
     ```
 
 ### Editing the Vault
@@ -100,7 +100,7 @@ To edit the encrypted vault file:
 ansible-vault edit vault.yml
 
 # Or explicitly specify the vault password:
-ansible-vault edit vault.yml --vault-password-file <(skate list ansible_vault_password -v)
+ansible-vault edit vault.yml --vault-password-file <(skate get ansible_vault_password)
 ```
 
 ## Usage
