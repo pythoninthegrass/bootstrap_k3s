@@ -63,7 +63,7 @@ The project uses an encrypted `vault.yml` file to manage sudo passwords for each
 
 ```bash
 ansible-vault encrypt vault.yml \
-    --vault-password-file <(skate get ansible_vault_password) \
+    --vault-password-file <(./scripts/ansible_vault_password.sh) \
     --encrypt-vault-id default
 ```
 
@@ -75,7 +75,7 @@ You can use the vault in two ways:
 
     ```bash
     # Set the ANSIBLE_VAULT_PASSWORD_FILE environment variable
-    export ANSIBLE_VAULT_PASSWORD_FILE=$(skate get ansible_vault_password)
+    export ANSIBLE_VAULT_PASSWORD_FILE=$(./scripts/ansible_vault_password.sh)
 
     # Now you can run ansible commands without specifying the vault-password-file flag
     ansible-playbook -i inventory.yml main.yml
