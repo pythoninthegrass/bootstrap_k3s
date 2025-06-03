@@ -5,19 +5,24 @@ resource "libvirt_volume" "ubuntu_base" {
   format = "qcow2"
 }
 
-resource "random_bytes" "mac" {
-  count  = var.control_plane_count + var.worker_count
-  length = 3
-  keepers = {
-    node_count = var.control_plane_count + var.worker_count
-  }
-}
-
 locals {
-  mac_addresses = {
-    for i in range(var.control_plane_count + var.worker_count) :
-    "node-${i + 1}" => format("52:54:00:%s", 
-      substr(replace(nonsensitive(random_bytes.mac[i].hex), "/(..)(..)(..)$/", "$1:$2:$3"), 0, 8)
-    )
-  }
+  # Generate deterministic MAC addresses based on IP addresses
+  mac_addresses = merge(
+    {
+      for i in range(1, var.control_plane_count + 1) :
+      "node-${i}" => format("52:54:00:%02x:%02x:%02x", 
+        10 + i - 1,  # Use the IP last octet for MAC
+        0,
+        i
+      )
+    },
+    {
+      for i in range(1, var.worker_count + 1) :
+      "node-${var.control_plane_count + i}" => format("52:54:00:%02x:%02x:%02x",
+        20 + i - 1,  # Use the IP last octet for MAC
+        1,
+        i
+      )
+    }
+  )
 }
