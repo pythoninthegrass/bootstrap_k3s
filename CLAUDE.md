@@ -1,0 +1,90 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+This is a k3s cluster bootstrap project that combines Terraform for infrastructure provisioning and Ansible for cluster configuration. It provides an alternative to k3sup for deploying high-availability k3s clusters with two deployment options: libvirt/KVM VMs or Vagrant.
+
+## Architecture
+
+The project follows a layered approach:
+
+- **Infrastructure Layer** (Terraform): Provisions libvirt/KVM VMs with cloud-init
+- **Configuration Layer** (Ansible): Deploys k3s cluster with embedded etcd and WireGuard networking
+- **Alternative Deployment** (Vagrant): Alternative VM provisioning method
+
+## Common Development Commands
+
+### Environment Setup
+
+```bash
+# Initialize Python environment
+uv venv && source .venv/bin/activate
+uv pip install -r pyproject.toml
+
+# Install Ansible collections
+ansible-galaxy collection install -r requirements.yml
+
+# Set vault password (requires Skate)
+export ANSIBLE_VAULT_PASSWORD_FILE=$(skate get ansible_vault_password)
+```
+
+### Terraform Workflow
+
+```bash
+cd terraform/
+terraform init
+terraform plan
+terraform apply
+
+# Generate configs for Ansible
+../scripts/generate_inventory.sh
+../scripts/setup_ssh_config.sh
+```
+
+### Ansible Workflow
+
+```bash
+# Deploy k3s cluster
+ansible-playbook -i inventory.yml main.yml
+
+# Remove k3s cluster
+ansible-playbook -i inventory.yml uninstall.yml
+
+# Test connectivity
+ansible all -i inventory.yml -m ping
+```
+
+### Vagrant Alternative
+
+Vagrant will eventually be removed. Terraform uses similar logic to provision VMs.
+
+```bash
+cd vagrant/
+vagrant up
+vagrant destroy -f
+```
+
+## Key Configuration Files
+
+- `terraform/variables.tf` - Infrastructure sizing and network configuration
+- `group_vars/all.yml` - k3s cluster configuration and global variables
+- `ansible.cfg` - Ansible behavior and SSH settings
+- `inventory.yml.example` - Sample inventory structure
+
+## Network Architecture
+
+- **Default Range**: 192.168.56.0/24
+- **Control Plane IPs**: .10-.19 (configurable count, default 3)
+- **Worker Node IPs**: .20-.29 (configurable count, default 1)
+- **Pod CIDR**: 10.42.0.0/16
+- **Service CIDR**: 10.43.0.0/16
+
+## Important Notes
+
+- The project uses Ansible Vault with Skate for password management
+- Terraform generates Ansible inventory automatically via templates
+- k3s is configured with WireGuard backend and embedded etcd for HA
+- Both bridge and NAT networking modes are supported
+- Cloud-init handles initial VM setup before Ansible takes over
