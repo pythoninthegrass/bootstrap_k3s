@@ -5,8 +5,8 @@ Alternative to [k3sup](https://github.com/alexellis/k3sup) for deploying k3s clu
 ## Minimum requirements
 
 * [Python 3.11+](https://www.python.org/downloads/)
+* [Terraform](https://www.terraform.io/downloads)
 * [Skate](https://github.com/charmbracelet/skate)
-* [Vagrant](https://www.vagrantup.com/downloads)
 
 ## Recommended requirements
 
@@ -146,6 +146,4 @@ ansible-playbook -i inventory.yml uninstall.yml
 
 ## TODO
 
-* Debug `ansible-navigator` ssh connection on macos
-* Move more vars to `group_vars`
-* Add task runners
+See [TODO.md](TODO.md)

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a k3s cluster bootstrap project that combines Terraform for infrastructure provisioning and Ansible for cluster configuration. It provides an alternative to k3sup for deploying high-availability k3s clusters with two deployment options: libvirt/KVM VMs or Vagrant.
+This is a k3s cluster bootstrap project that combines Terraform for infrastructure provisioning and Ansible for cluster configuration. It provides an alternative to k3sup for deploying high-availability k3s clusters with two deployment options: libvirt/KVM VMs.
 
 ## Architecture
 
@@ -12,7 +12,16 @@ The project follows a layered approach:
 
 - **Infrastructure Layer** (Terraform): Provisions libvirt/KVM VMs with cloud-init
 - **Configuration Layer** (Ansible): Deploys k3s cluster with embedded etcd and WireGuard networking
-- **Alternative Deployment** (Vagrant): Alternative VM provisioning method
+
+## LLM Instructions
+
+When working with Terraform in this repository, the LLM should:
+
+- Never run Terraform commands (`terraform init`, `terraform plan`, `terraform apply`, etc.) without explicit user request
+  - An exception is to always run `terraform validate` before proposing any Terraform code changes to ensure the configuration is valid
+- Only suggest Terraform commands and wait for user approval before executing them
+- Explain the purpose and potential impact of any suggested Terraform commands
+- Follow linting rules (e.g., `terraform fmt`, `.editorconfig`, `.markdownlint.jsonc`, etc.)
 
 ## Common Development Commands
 
@@ -28,6 +37,26 @@ ansible-galaxy collection install -r requirements.yml
 
 # Set vault password (requires Skate)
 export ANSIBLE_VAULT_PASSWORD_FILE=$(skate get ansible_vault_password)
+```
+
+### Remote libvirt server checks
+
+Assuming that the remote libvirt host is aliased as `dev` in `~/.ssh/config` and the network name is `k8s_network`, these commands can be used to check the status of the VMs from a local machine.
+
+Note that the `qemu:///system` URI is needed to connect to the remote libvirt hypervisor. Without it, `virsh` returns empty results.
+
+```bash
+# List all VMs on remote libvirt host
+ssh dev "virsh -c qemu:///system list --all"
+
+# Check dhcp leases
+ssh dev "virsh -c qemu:///system net-dhcp-leases k8s_network"
+
+# Check VM status
+ssh dev "virsh -c qemu:///system dominfo node-1"
+
+# View VM console
+ssh dev "virsh -c qemu:///system console node-1"
 ```
 
 ### Terraform Workflow
@@ -56,16 +85,6 @@ ansible-playbook -i inventory.yml uninstall.yml
 ansible all -i inventory.yml -m ping
 ```
 
-### Vagrant Alternative
-
-Vagrant will eventually be removed. Terraform uses similar logic to provision VMs.
-
-```bash
-cd vagrant/
-vagrant up
-vagrant destroy -f
-```
-
 ## Key Configuration Files
 
 - `terraform/variables.tf` - Infrastructure sizing and network configuration
@@ -88,3 +107,13 @@ vagrant destroy -f
 - k3s is configured with WireGuard backend and embedded etcd for HA
 - Both bridge and NAT networking modes are supported
 - Cloud-init handles initial VM setup before Ansible takes over
+
+## LLM Online Resources
+
+When working with this codebase, the following online resources should be considered as known:
+
+- [Terraform Libvirt Provider Documentation](https://registry.terraform.io/providers/dmacvicar/libvirt/latest/docs) - Official documentation for the libvirt provider
+- [Terraform Libvirt Provider GitHub Repository](https://github.com/dmacvicar/terraform-provider-libvirt) - Source code and examples for the libvirt provider
+- [Libvirt Documentation](https://libvirt.org/docs.html) - Official libvirt documentation and guides
+
+These resources should be treated as known and available for reference when working with the codebase.

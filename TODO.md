@@ -1,4 +1,5 @@
 # TODO
 
-* Generate ansible inventory from vagrant
-  * Similar to how it's currently generating a libvirt network config
+* Debug `ansible-navigator` ssh connection on macos
+* Move more vars to `group_vars`
+* Add task runners
