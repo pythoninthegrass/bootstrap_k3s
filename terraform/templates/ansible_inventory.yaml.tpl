@@ -1,3 +1,4 @@
+---
 all:
   children:
     k3s_cluster:
@@ -22,4 +23,5 @@ all:
   vars:
     ansible_user: ubuntu
     ansible_port: 22
+    ansible_ssh_private_key_file: "{{ lookup('env', 'HOME') }}/.ssh/id_rsa"
     ansible_python_interpreter: /usr/bin/python3
