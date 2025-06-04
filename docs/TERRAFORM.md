@@ -9,8 +9,7 @@ terraform plan -out tfplan
 terraform apply tfplan
 
 # Generate configs for Ansible
-../scripts/generate_inventory.sh
-../scripts/setup_ssh_config.sh
+../scripts/inventory.sh
 ```
 
 ## Post-Deployment

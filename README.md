@@ -40,7 +40,7 @@ Deploy a k3s cluster with default settings in 4 steps:
 3. **Set up vault password:**
    ```bash
    skate set ansible_vault_password <YOUR_PASSWORD>
-   export ANSIBLE_VAULT_PASSWORD_FILE="./scripts/ansible_vault_password.sh"
+   export ANSIBLE_VAULT_PASSWORD_FILE="./scripts/pass.sh"
    ```
 
 4. **Deploy k3s cluster:**
