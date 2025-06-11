@@ -71,26 +71,21 @@ log "Found $WORKER_COUNT worker nodes: ${WORKER_IPS[*]}"
 
 # Configuration
 SSH_USER="ubuntu"
-TAILSCALE_HOST="100.72.47.104"
-TAILSCALE_USER="ubuntu"
 K3S_CHANNEL="stable"
 KUBECONFIG_PATH="$HOME/.kube/config"
 
 # Install k3s on the first control plane node with cluster mode (embedded etcd)
 FIRST_CONTROL_PLANE_IP="${CONTROL_PLANE_IPS[0]}"
-log "Installing k3s on first control plane node: $FIRST_CONTROL_PLANE_IP via Tailscale proxy"
+log "Installing k3s on first control plane node: $FIRST_CONTROL_PLANE_IP"
 
-# Run k3sup install on the Tailscale server since it has direct access to VMs
-ssh "$TAILSCALE_USER@$TAILSCALE_HOST" "k3sup install \
+k3sup install \
     --cluster \
-    --host $FIRST_CONTROL_PLANE_IP \
-    --user $SSH_USER \
-    --k3s-channel $K3S_CHANNEL \
-    --local-path /tmp/kubeconfig \
-    --print-command"
-
-# Copy kubeconfig back to local machine
-scp "$TAILSCALE_USER@$TAILSCALE_HOST:/tmp/kubeconfig" "$KUBECONFIG_PATH"
+    --host "$FIRST_CONTROL_PLANE_IP" \
+    --user "$SSH_USER" \
+    --k3s-channel "$K3S_CHANNEL" \
+    --local-path "$KUBECONFIG_PATH" \
+    --context "k3s-$(basename "$PWD")" \
+    --print-command
 
 # Join additional control plane nodes if any
 if [[ ${#CONTROL_PLANE_IPS[@]} -gt 1 ]]; then
@@ -101,14 +96,14 @@ if [[ ${#CONTROL_PLANE_IPS[@]} -gt 1 ]]; then
         CONTROL_PLANE_IP=${CONTROL_PLANE_IPS[$i]}
         log "Joining control plane node: $CONTROL_PLANE_IP"
 
-        ssh "$TAILSCALE_USER@$TAILSCALE_HOST" "k3sup join \
+        k3sup join \
             --server \
-            --host $CONTROL_PLANE_IP \
-            --user $SSH_USER \
-            --server-host $FIRST_CONTROL_PLANE_IP \
-            --server-user $SSH_USER \
-            --k3s-channel $K3S_CHANNEL \
-            --print-command"
+            --host "$CONTROL_PLANE_IP" \
+            --user "$SSH_USER" \
+            --server-host "$FIRST_CONTROL_PLANE_IP" \
+            --server-user "$SSH_USER" \
+            --k3s-channel "$K3S_CHANNEL" \
+            --print-command
     done
 fi
 
@@ -119,13 +114,13 @@ if [[ ${#WORKER_IPS[@]} -gt 0 ]]; then
         log "Joining worker node: k3s-worker-$((i+1))"
 
         WORKER_IP="${WORKER_IPS[$i]}"
-        ssh "$TAILSCALE_USER@$TAILSCALE_HOST" "k3sup join \
-            --host $WORKER_IP \
-            --user $SSH_USER \
-            --server-host $FIRST_CONTROL_PLANE_IP \
-            --server-user $SSH_USER \
-            --k3s-channel $K3S_CHANNEL \
-            --print-command"
+        k3sup join \
+            --host "$WORKER_IP" \
+            --user "$SSH_USER" \
+            --server-host "$FIRST_CONTROL_PLANE_IP" \
+            --server-user "$SSH_USER" \
+            --k3s-channel "$K3S_CHANNEL" \
+            --print-command
     done
 fi
 
