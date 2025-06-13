@@ -1,0 +1,56 @@
+---
+# Deploy MetalLB
+- name: Deploy MetalLB
+  when:
+    - inventory_hostname == k3s_primary_control_node
+    - metallb_enabled | default(true)
+  block:
+    - name: Apply MetalLB manifest
+      kubernetes.core.k8s:
+        state: present
+        src: "https://raw.githubusercontent.com/metallb/metallb/{{ metallb_version }}/config/manifests/metallb-native.yaml"
+        kubeconfig: "{{ kubeconfig }}"
+        wait: true
+        wait_timeout: 600
+
+    - name: Wait for MetalLB controller to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: controller
+        namespace: metallb-system
+        kubeconfig: "{{ kubeconfig }}"
+        wait: true
+        wait_condition:
+          type: Progressing
+          status: "True"
+          reason: NewReplicaSetAvailable
+        wait_timeout: 300
+
+    - name: Configure MetalLB IP address pool
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: metallb.io/v1beta1
+          kind: IPAddressPool
+          metadata:
+            name: default-pool
+            namespace: metallb-system
+          spec:
+            addresses:
+              - "{{ metallb_ip_range }}"
+
+    - name: Configure MetalLB L2 advertisement
+      kubernetes.core.k8s:
+        state: present
+        kubeconfig: "{{ kubeconfig }}"
+        definition:
+          apiVersion: metallb.io/v1beta1
+          kind: L2Advertisement
+          metadata:
+            name: default
+            namespace: metallb-system
+          spec:
+            ipAddressPools:
+              - default-pool

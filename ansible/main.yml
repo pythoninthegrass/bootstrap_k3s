@@ -5,202 +5,418 @@
   gather_facts: true
   vars_files:
     - vault.yml
+  vars:
+    k3s_become_for_all: true
+    k3s_state: installed
+    k3s_release_channel: "{{ k3s_channel | default('stable') }}"
+    kubeconfig: /etc/rancher/k3s/k3s.yaml
+    metallb_version: "v0.14.3"
+    nginx_ingress_version: "v1.10.0"
+    metallb_ip_range: "{{ base_ip }}.240-{{ base_ip }}.250"
 
   pre_tasks:
+    - name: Validate cluster configuration
+      ansible.builtin.assert:
+        that:
+          - groups['k3s_servers'] is defined
+          - groups['k3s_servers'] | length >= 1
+          - groups['k3s_servers'] | length % 2 == 1
+        fail_msg: "K3s requires an odd number of control plane nodes (1, 3, 5, etc.)"
+
+    - name: Set cluster facts
+      ansible.builtin.set_fact:
+        k3s_primary_control_node: "{{ groups['k3s_servers'][0] }}"
+        k3s_server_count: "{{ groups['k3s_servers'] | length }}"
+
+  tasks:
+    # System Preparation Tasks
     - name: Set hostname
       ansible.builtin.hostname:
         name: "{{ inventory_hostname }}"
         use: systemd
 
-    - name: Update apt cache
-      ansible.builtin.apt:
+    - name: Update package cache
+      ansible.builtin.package:
         update_cache: true
-        cache_valid_time: 3600
-      when: ansible_os_family == "Debian"
+      changed_when: false
 
-    - name: Update dnf cache
-      ansible.builtin.dnf:
-        update_cache: true
-      when: ansible_os_family == "RedHat"
-
-    - name: Install firewall packages for Debian
-      ansible.builtin.apt:
+    - name: Install required packages
+      ansible.builtin.package:
         name:
+          - ca-certificates
+          - curl
+          - firewalld
+          - gnupg
           - iptables
-          - firewalld
-          - nftables
+          - lsb-release
         state: present
-      when: ansible_os_family == "Debian"
-
-    - name: Install firewall packages for RedHat
-      ansible.builtin.dnf:
-        name:
-          - firewalld
-          - nftables
-        state: present
-      when: ansible_os_family == "RedHat"
 
     - name: Enable and start firewalld
       ansible.builtin.systemd:
         name: firewalld
         state: started
         enabled: true
+        daemon_reload: true
 
-    - name: Configure firewall ports
+    - name: Configure firewall for k3s
       ansible.posix.firewalld:
-        port: "{{ item.port }}/{{ item.proto }}"
+        port: "{{ item }}"
         permanent: true
         immediate: true
         state: enabled
-      loop: "{{ firewall_ports }}"
+      loop:
+        - "6443/tcp"      # Kubernetes API
+        - "10250/tcp"     # Kubelet metrics
+        - "10251/tcp"     # kube-scheduler
+        - "10252/tcp"     # kube-controller-manager
+        - "2379-2380/tcp" # etcd
+        - "8472/udp"      # Flannel VXLAN
+        - "51820/udp"     # Flannel WireGuard IPv4
+        - "51821/udp"     # Flannel WireGuard IPv6
 
-    - name: Configure firewall networks
+    - name: Configure firewall for pod/service networks
       ansible.posix.firewalld:
-        source: "{{ item.network }}"
+        source: "{{ item }}"
         zone: trusted
         permanent: true
         immediate: true
         state: enabled
-      loop: "{{ firewall_networks }}"
+      loop:
+        - "10.42.0.0/16"  # Pod CIDR
+        - "10.43.0.0/16"  # Service CIDR
 
-  tasks:
-    - name: Install dependencies for Debian
-      ansible.builtin.apt:
-        name:
-          - build-essential
-          - ca-certificates
-          - git
-          - curl
-          - wireguard
-          - wireguard-tools  # Add wireguard-tools package
-        state: present
-      when: ansible_os_family == "Debian"
-
-    - name: Install dependencies for RedHat
-      ansible.builtin.dnf:
-        name:
-          - curl
-          - wireguard-tools
-          - kernel-modules-extra
-          - wireguard-dkms  # Add wireguard-dkms package
-        state: present
-      when: ansible_os_family == "RedHat"
-
-    - name: Load WireGuard kernel module
+    - name: Load required kernel modules
       community.general.modprobe:
-        name: wireguard
+        name: "{{ item }}"
         state: present
-      register: wireguard_module_load
-      failed_when: false  # Don't fail if module can't be loaded
-
-    - name: Check if WireGuard module is loaded
-      ansible.builtin.command: lsmod | grep wireguard
-      register: wireguard_loaded
-      changed_when: false
+        persistent: present
+      loop:
+        - br_netfilter
+        - overlay
+        - wireguard
       failed_when: false
 
-    - name: Debug WireGuard module status
-      ansible.builtin.debug:
-        msg: "WireGuard module status: {{ 'LOADED' if wireguard_loaded.rc == 0 else 'NOT LOADED' }}"
+    - name: Set sysctl parameters
+      ansible.posix.sysctl:
+        name: "{{ item.key }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: true
+        sysctl_file: /etc/sysctl.d/k3s.conf
+      loop:
+        - { key: "net.bridge.bridge-nf-call-iptables", value: "1" }
+        - { key: "net.bridge.bridge-nf-call-ip6tables", value: "1" }
+        - { key: "net.ipv4.ip_forward", value: "1" }
+        - { key: "net.ipv6.conf.all.forwarding", value: "1" }
+        - { key: "fs.inotify.max_user_watches", value: "524288" }
+        - { key: "fs.inotify.max_user_instances", value: "512" }
 
-    - name: Create K3s directories
+    # Download K3s Tasks
+    - name: Check if k3s is already installed
+      ansible.builtin.stat:
+        path: /usr/local/bin/k3s
+      register: k3s_binary
+
+    - name: Get installed k3s version
+      ansible.builtin.command: /usr/local/bin/k3s --version
+      register: installed_k3s_version
+      changed_when: false
+      failed_when: false
+      when: k3s_binary.stat.exists
+
+    - name: Download k3s install script
+      ansible.builtin.get_url:
+        url: https://get.k3s.io
+        dest: /tmp/install-k3s.sh
+        mode: '0755'
+      when: >
+        not k3s_binary.stat.exists or
+        (k3s_version is defined and k3s_version not in (installed_k3s_version.stdout | default('')))
+
+    - name: Create k3s directories
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
         mode: '0755'
       loop:
-        - "{{ k3s_server_location }}"
-        - "{{ k3s_server_location }}/server"
+        - /etc/rancher/k3s
+        - /var/lib/rancher/k3s
+        - /var/lib/rancher/k3s/server
+        - /var/lib/rancher/k3s/agent
 
-    - name: Download K3s install script
-      ansible.builtin.get_url:
-        url: https://get.k3s.io
-        dest: /tmp/k3s-install.sh
-        mode: '0755'
-
-    - name: Set default k3s_server_args if not defined
-      ansible.builtin.set_fact:
-        k3s_server_args: "{{ k3s_server_args | default(['--flannel-backend=vxlan']) }}"  # Set vxlan as default
-
-    - name: Set combined server args
-      ansible.builtin.set_fact:
-        combined_server_args: "{{ k3s_server_args + (k3s_server_args_extra | default([])) }}"
-
-    - name: Mark if this is a control node
-      ansible.builtin.set_fact:
-        is_control_node: "{{ k3s_control_node | default(false) | bool }}"
-
-    - name: Set primary control node fact on first server
-      ansible.builtin.set_fact:
-        is_primary_control_node: true
+    # Deploy Primary Control Plane (HA)
+    - name: Deploy primary control plane with HA
       when:
-        - k3s_type == "server"
-        - is_control_node
-        - inventory_hostname == ansible_play_hosts[0] or ansible_play_hosts | length == 1
+        - inventory_hostname == k3s_primary_control_node
+        - k3s_server_count | int > 1
+      block:
+        - name: Create k3s server config for primary HA node
+          ansible.builtin.template:
+            src: k3s-server.yaml.j2
+            dest: /etc/rancher/k3s/config.yaml
+            mode: '0644'
+          vars:
+            k3s_init_cluster: true
 
-    - name: Debug primary control node selection
-      ansible.builtin.debug:
-        msg: "{{ inventory_hostname }} is the primary control node"
-      when: is_primary_control_node is defined and is_primary_control_node
+        - name: Install k3s primary control plane
+          ansible.builtin.shell: |
+            INSTALL_K3S_VERSION="{{ k3s_version | default('') }}" \
+            INSTALL_K3S_CHANNEL="{{ k3s_channel }}" \
+            INSTALL_K3S_EXEC="server" \
+            sh /tmp/install-k3s.sh
+          args:
+            creates: /var/lib/rancher/k3s/server/node-token
+          environment:
+            INSTALL_K3S_SKIP_START: "false"
 
-    - name: Install K3s primary server
-      ansible.builtin.shell: |
-        INSTALL_K3S_VERSION={{ k3s_version }} \
-        INSTALL_K3S_CHANNEL={{ k3s_channel }} \
-        INSTALL_K3S_EXEC="server {{ combined_server_args | join(' ') }} --cluster-init" \
-        /tmp/k3s-install.sh
-      args:
-        creates: /usr/local/bin/k3s
-      when: is_primary_control_node is defined and is_primary_control_node
-      register: k3s_server_install
+        - name: Wait for k3s to start
+          ansible.builtin.systemd:
+            name: k3s
+            state: started
+            enabled: true
+          register: k3s_service
+          until: k3s_service.status.ActiveState == "active"
+          retries: 10
+          delay: 5
 
-    - name: Get node token from primary server
+        - name: Wait for node-token
+          ansible.builtin.wait_for:
+            path: /var/lib/rancher/k3s/server/node-token
+            state: present
+            timeout: 30
+
+        - name: Wait for k3s API to be ready
+          ansible.builtin.uri:
+            url: https://127.0.0.1:6443/healthz
+            validate_certs: false
+            status_code: 200
+          register: k3s_api_ready
+          until: k3s_api_ready.status == 200
+          retries: 30
+          delay: 5
+
+    # Deploy Single Node
+    - name: Deploy single node k3s
+      when:
+        - inventory_hostname == k3s_primary_control_node
+        - k3s_server_count | int == 1
+      block:
+        - name: Create k3s server config for single node
+          ansible.builtin.template:
+            src: k3s-server.yaml.j2
+            dest: /etc/rancher/k3s/config.yaml
+            mode: '0644'
+          vars:
+            k3s_init_cluster: false
+            k3s_single_node: true
+
+        - name: Install k3s single node
+          ansible.builtin.shell: |
+            INSTALL_K3S_VERSION="{{ k3s_version | default('') }}" \
+            INSTALL_K3S_CHANNEL="{{ k3s_channel }}" \
+            INSTALL_K3S_EXEC="server" \
+            sh /tmp/install-k3s.sh
+          args:
+            creates: /var/lib/rancher/k3s/server/node-token
+
+        - name: Ensure k3s is running
+          ansible.builtin.systemd:
+            name: k3s
+            state: started
+            enabled: true
+            daemon_reload: true
+
+        - name: Wait for k3s API
+          ansible.builtin.uri:
+            url: https://127.0.0.1:6443/healthz
+            validate_certs: false
+            status_code: 200
+          register: result
+          until: result.status == 200
+          retries: 30
+          delay: 5
+
+    # Wait for primary node and get token
+    - name: Wait for primary node to be ready
+      ansible.builtin.uri:
+        url: "https://{{ hostvars[k3s_primary_control_node]['ansible_default_ipv4']['address'] }}:6443/healthz"
+        validate_certs: false
+        status_code: 200
+      register: k3s_primary_ready
+      until: k3s_primary_ready.status == 200
+      retries: 30
+      delay: 5
+      when: inventory_hostname != k3s_primary_control_node
+
+    - name: Get join token from primary
       ansible.builtin.slurp:
-        src: "{{ k3s_token_file }}"
-      register: node_token_data
-      when: is_primary_control_node is defined and is_primary_control_node
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_node_token
+      delegate_to: "{{ k3s_primary_control_node }}"
+      delegate_facts: true
+      when: inventory_hostname == k3s_primary_control_node
 
-    - name: Set node token fact
-      ansible.builtin.set_fact:
-        primary_control_node: "{{ item }}"
-        node_token: "{{ hostvars[item]['node_token_data']['content'] | b64decode }}"
+    # Join Additional Control Planes
+    - name: Join additional control plane nodes
       when:
-        - hostvars[item]['is_primary_control_node'] is defined
-        - hostvars[item]['is_primary_control_node']
-        - hostvars[item]['node_token_data'] is defined
-      loop: "{{ ansible_play_hosts }}"
+        - inventory_hostname in groups['k3s_servers']
+        - inventory_hostname != k3s_primary_control_node
+      block:
+        - name: Create k3s server config for additional control plane
+          ansible.builtin.template:
+            src: k3s-server.yaml.j2
+            dest: /etc/rancher/k3s/config.yaml
+            mode: '0644'
+          vars:
+            k3s_init_cluster: false
+            k3s_server_url: "https://{{ hostvars[k3s_primary_control_node]['ansible_default_ipv4']['address'] }}:6443"
+            k3s_token: "{{ hostvars[k3s_primary_control_node]['k3s_node_token']['content'] | b64decode | trim }}"
 
-    - name: Join additional servers
-      ansible.builtin.shell: |
-        set -o pipefail
-        INSTALL_K3S_VERSION={{ k3s_version }} \
-        INSTALL_K3S_CHANNEL={{ k3s_channel }} \
-        K3S_TOKEN={{ node_token }} \
-        K3S_URL=https://{{ hostvars[primary_control_node]['ansible_host'] }}:6443 \
-        INSTALL_K3S_EXEC="server {{ combined_server_args | join(' ') }}" \
-        /tmp/k3s-install.sh
-      args:
-        creates: /usr/local/bin/k3s
+        - name: Install k3s on additional control plane
+          ansible.builtin.shell: |
+            INSTALL_K3S_VERSION="{{ k3s_version | default('') }}" \
+            INSTALL_K3S_CHANNEL="{{ k3s_channel }}" \
+            INSTALL_K3S_EXEC="server" \
+            K3S_URL="https://{{ hostvars[k3s_primary_control_node]['ansible_default_ipv4']['address'] }}:6443" \
+            K3S_TOKEN="{{ hostvars[k3s_primary_control_node]['k3s_node_token']['content'] | b64decode | trim }}" \
+            sh /tmp/install-k3s.sh
+          args:
+            creates: /usr/local/bin/k3s
+
+        - name: Ensure k3s is running on additional control plane
+          ansible.builtin.systemd:
+            name: k3s
+            state: started
+            enabled: true
+            daemon_reload: true
+
+        - name: Wait for node to join cluster
+          ansible.builtin.uri:
+            url: https://127.0.0.1:6443/healthz
+            validate_certs: false
+            status_code: 200
+          register: node_ready
+          until: node_ready.status == 200
+          retries: 30
+          delay: 5
+
+    # Join Worker Nodes
+    - name: Join worker nodes
       when:
-        - k3s_type == "server"
-        - not (is_primary_control_node is defined and is_primary_control_node)
-        - primary_control_node is defined
-        - node_token is defined
+        - groups['k3s_workers'] is defined
+        - inventory_hostname in groups['k3s_workers']
+      block:
+        - name: Create k3s agent config
+          ansible.builtin.template:
+            src: k3s-agent.yaml.j2
+            dest: /etc/rancher/k3s/config.yaml
+            mode: '0644'
+          vars:
+            k3s_server_url: "https://{{ hostvars[k3s_primary_control_node]['ansible_default_ipv4']['address'] }}:6443"
+            k3s_token: "{{ hostvars[k3s_primary_control_node]['k3s_node_token']['content'] | b64decode | trim }}"
 
-    - name: Get kubeconfig content from primary server
-      ansible.builtin.slurp:
-        src: /etc/rancher/k3s/k3s.yaml
-      register: kubeconfig_content
-      when: is_primary_control_node is defined and is_primary_control_node
+        - name: Install k3s agent on worker
+          ansible.builtin.shell: |
+            INSTALL_K3S_VERSION="{{ k3s_version | default('') }}" \
+            INSTALL_K3S_CHANNEL="{{ k3s_channel }}" \
+            INSTALL_K3S_EXEC="agent" \
+            K3S_URL="https://{{ hostvars[k3s_primary_control_node]['ansible_default_ipv4']['address'] }}:6443" \
+            K3S_TOKEN="{{ hostvars[k3s_primary_control_node]['k3s_node_token']['content'] | b64decode | trim }}" \
+            sh /tmp/install-k3s.sh
+          args:
+            creates: /usr/local/bin/k3s
 
-    - name: Create local kubeconfig with managed block
-      ansible.builtin.template:
-        src: k3s.yml.j2
-        dest: "{{ lookup('env', 'HOME') }}/.kube/k3s.yml"
-        mode: '0600'
-      vars:
-        kubeconfig_data: "{{ kubeconfig_content.content | b64decode }}"
-        server_url: "{{ hostvars[primary_control_node]['ansible_host'] }}"
-      delegate_to: localhost
-      become: false
-      when: is_primary_control_node is defined and is_primary_control_node
+        - name: Ensure k3s-agent is running
+          ansible.builtin.systemd:
+            name: k3s-agent
+            state: started
+            enabled: true
+            daemon_reload: true
+
+        - name: Wait for kubelet to be ready
+          ansible.builtin.wait_for:
+            port: 10250
+            host: "{{ ansible_default_ipv4.address }}"
+            delay: 10
+            timeout: 300
+
+    # Post-deployment configuration
+    - name: Setup kubectl access and node labels
+      when: inventory_hostname == k3s_primary_control_node
+      block:
+        - name: Create .kube directory
+          ansible.builtin.file:
+            path: "{{ ansible_env.HOME }}/.kube"
+            state: directory
+            mode: '0755'
+
+        - name: Copy k3s kubeconfig
+          ansible.builtin.copy:
+            src: /etc/rancher/k3s/k3s.yaml
+            dest: "{{ ansible_env.HOME }}/.kube/config"
+            remote_src: true
+            mode: '0600'
+
+        - name: Update kubeconfig server address
+          ansible.builtin.replace:
+            path: "{{ ansible_env.HOME }}/.kube/config"
+            regexp: 'server: https://127.0.0.1:6443'
+            replace: "server: https://{{ ansible_default_ipv4.address }}:6443"
+
+        - name: Fetch kubeconfig to local machine
+          ansible.builtin.fetch:
+            src: "{{ ansible_env.HOME }}/.kube/config"
+            dest: "../kubeconfig.yml"
+            flat: true
+
+        - name: Create kubectl symlink if needed
+          ansible.builtin.file:
+            src: /usr/local/bin/k3s
+            dest: /usr/local/bin/kubectl
+            state: link
+          when: not kubectl_binary.stat.exists | default(true)
+
+        - name: Wait for all nodes to be ready
+          kubernetes.core.k8s_info:
+            api_version: v1
+            kind: Node
+            wait: true
+            wait_condition:
+              type: Ready
+              status: "True"
+            wait_timeout: 300
+          register: nodes_ready
+
+        - name: Label worker nodes
+          kubernetes.core.k8s:
+            state: present
+            definition:
+              apiVersion: v1
+              kind: Node
+              metadata:
+                name: "{{ item }}"
+                labels:
+                  node-role.kubernetes.io/worker: "true"
+          loop: "{{ groups['k3s_workers'] | default([]) }}"
+          when: groups['k3s_workers'] is defined
+
+        - name: Remove control plane taints if single node
+          kubernetes.core.k8s_taint:
+            state: absent
+            name: "{{ k3s_primary_control_node }}"
+            taints:
+              - key: node-role.kubernetes.io/control-plane
+                effect: NoSchedule
+          when: k3s_server_count | int == 1
+
+    # Deploy MetalLB
+    - name: Include MetalLB deployment tasks
+      ansible.builtin.include_tasks: tasks/metallb.yml
+
+    # Deploy NGINX Ingress Controller
+    - name: Include NGINX Ingress deployment tasks
+      ansible.builtin.include_tasks: tasks/nginx.yml
+
+    # Create Test Resources
+    - name: Include test deployment tasks
+      ansible.builtin.include_tasks: tasks/test.yml

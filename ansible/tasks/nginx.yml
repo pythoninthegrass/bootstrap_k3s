@@ -1,0 +1,54 @@
+---
+# Deploy NGINX Ingress Controller
+- name: Deploy NGINX Ingress Controller
+  when:
+    - inventory_hostname == k3s_primary_control_node
+    - nginx_ingress_enabled | default(true)
+  block:
+    - name: Add NGINX Ingress helm repository
+      kubernetes.core.helm_repository:
+        name: ingress-nginx
+        repo_url: https://kubernetes.github.io/ingress-nginx
+        kubeconfig: "{{ kubeconfig }}"
+
+    - name: Deploy NGINX Ingress via Helm
+      kubernetes.core.helm:
+        name: ingress-nginx
+        chart_ref: ingress-nginx/ingress-nginx
+        release_namespace: ingress-nginx
+        create_namespace: true
+        kubeconfig: "{{ kubeconfig }}"
+        wait: true
+        values:
+          controller:
+            service:
+              type: LoadBalancer
+              externalTrafficPolicy: Local
+            metrics:
+              enabled: true
+              service:
+                annotations:
+                  prometheus.io/scrape: "true"
+                  prometheus.io/port: "10254"
+            podAnnotations:
+              prometheus.io/scrape: "true"
+              prometheus.io/port: "10254"
+            config:
+              use-forwarded-headers: "true"
+              compute-full-forwarded-for: "true"
+              use-proxy-protocol: "false"
+            ingressClassResource:
+              default: true
+
+    - name: Wait for NGINX Ingress to be ready
+      kubernetes.core.k8s_info:
+        api_version: apps/v1
+        kind: Deployment
+        name: ingress-nginx-controller
+        namespace: ingress-nginx
+        kubeconfig: "{{ kubeconfig }}"
+        wait: true
+        wait_condition:
+          type: Progressing
+          status: "True"
+        wait_timeout: 300
