@@ -1,0 +1,29 @@
+#jinja2: trim_blocks: True, lstrip_blocks: True
+# {{ ansible_managed }}
+# Last updated: {{ ansible_date_time.iso8601 }}
+
+server: "{{ k3s_server_url }}"
+token: "{{ k3s_token }}"
+
+# Node labels
+node-label:
+  - "node-role.kubernetes.io/worker=true"
+  - "node.kubernetes.io/instance-type=k3s"
+  - "kubernetes.io/hostname={{ ansible_hostname }}"
+
+# Kubelet configuration
+kubelet-arg:
+  - "feature-gates=GracefulNodeShutdown=true"
+  - "container-log-max-size=10Mi"
+  - "container-log-max-files=5"
+  - "eviction-hard=imagefs.available<5%,memory.available<100Mi,nodefs.available<5%"
+  - "eviction-soft=imagefs.available<10%,memory.available<200Mi,nodefs.available<10%"
+  - "eviction-soft-grace-period=imagefs.available=2m,memory.available=2m,nodefs.available=2m"
+  - "max-pods=110"
+
+# Additional configs from group_vars
+{% if k3s_agent_args_extra is defined %}
+{% for arg in k3s_agent_args_extra %}
+{{ arg }}
+{% endfor %}
+{% endif %}
