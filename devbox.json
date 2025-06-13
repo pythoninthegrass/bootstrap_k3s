@@ -1,8 +1,5 @@
 {
   "packages": {
-    "ansible-lint":    "latest",
-    "ansible":         "latest",
-    "asdf-vm":         "latest",
     "gh":              "latest",
     "git":             "latest",
     "glib":            "latest",
@@ -38,9 +35,8 @@
       "export SUDO_PASS=${ANSIBLE_BECOME_PASSWORD}"
     ],
     "scripts": {
+      "install":     "uv pip install -r pyproject.toml --all-extras",
       "export-reqs": "uv pip freeze | uv pip compile - -o requirements.txt",
-      "install":     "uv pip install -r requirements.txt",
-      "test":        "pytest",
       "venv":        "uv venv ${VENV_DIR} --allow-existing"
     }
   }
