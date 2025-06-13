@@ -1,7 +1,7 @@
 # ETC
 .ansible/
 **/settings.local.json
-facts/*
+**/facts/*
 inventory.yml
 vault.yml
 
