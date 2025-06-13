@@ -79,7 +79,7 @@ terraform apply
 ansible-playbook -i inventory.yml main.yml
 
 # Remove k3s cluster
-ansible-playbook -i inventory.yml uninstall.yml
+ansible-playbook -i inventory.yml tasks/uninstall.yml
 
 # Test connectivity
 ansible all -i inventory.yml -m ping

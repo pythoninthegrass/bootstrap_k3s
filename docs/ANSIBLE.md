@@ -121,5 +121,5 @@ ansible-playbook -i inventory.yml main.yml --limit server-1
 ### Uninstall k3s
 
 ```bash
-ansible-playbook -i inventory.yml uninstall.yml
+ansible-playbook -i inventory.yml tasks/uninstall.yml
 ```
