@@ -1,9 +1,9 @@
 # TODO
 
-* Setup local overprovisioned ubuntu vm (e.g., orbstack)
+* ~~Setup local overprovisioned ubuntu vm (e.g., orbstack)~~
 * Terraform
-  * Deploy to local ubuntu vm
-  * Deploy to rack ubuntu server
+  * ~~Deploy to local ubuntu vm~~
+  * ~~Deploy to rack ubuntu server~~
 * Ansible
   * Refactor
     * Update inventory.yml and vault.yml
