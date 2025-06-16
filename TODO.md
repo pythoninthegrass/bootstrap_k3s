@@ -7,6 +7,7 @@
 * Ansible
   * Refactor
     * Update inventory.yml and vault.yml
+      * `scripts/inventory.sh`
     * Test
       * main.yml
       * test.yml
