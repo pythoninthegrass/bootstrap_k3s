@@ -41,7 +41,9 @@ export ANSIBLE_VAULT_PASSWORD_FILE=$(skate get ansible_vault_password)
 
 ### Remote libvirt server checks
 
-Assuming that the remote libvirt host is aliased as `dev` in `~/.ssh/config` and the network name is `k8s_network`, these commands can be used to check the status of the VMs from a local machine.
+Assuming that the remote libvirt host is aliased as `dev` in `~/.ssh/config` while at the office; when working from home, the libvirt host is aliased as `dev-ts` (for tailscale). 
+
+The network name is `k8s_network`, these commands can be used to check the status of the VMs from a local machine.
 
 Note that the `qemu:///system` URI is needed to connect to the remote libvirt hypervisor. Without it, `virsh` returns empty results.
 
