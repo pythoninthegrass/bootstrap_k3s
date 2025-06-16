@@ -13,7 +13,8 @@ else
 fi
 
 TF_DIR="${TLD}/terraform"
+OUT_DIR="${TLD}/ansible"
 
 echo "Generating Ansible inventory..."
-terraform -chdir="${TF_DIR}" output -raw ansible_inventory > "${TLD}/inventory.yml"
-echo "Inventory saved to ${TLD}/inventory.yml"
+terraform -chdir="${TF_DIR}" output -raw ansible_inventory > "${OUT_DIR}/inventory.yml"
+echo "Inventory saved to ${OUT_DIR}/inventory.yml"
