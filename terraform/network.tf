@@ -40,4 +40,11 @@ resource "libvirt_network" "k8s_network" {
       }
     }
   }
+
+  lifecycle {
+    ignore_changes = [
+      dns,
+      dnsmasq_options
+    ]
+  }
 }

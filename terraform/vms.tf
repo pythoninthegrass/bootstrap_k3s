@@ -19,6 +19,12 @@ resource "libvirt_volume" "node_volume" {
   pool           = var.storage_pool
   size           = each.value.disk_size * 1073741824
   format         = "qcow2"
+
+  lifecycle {
+    ignore_changes = [
+      size
+    ]
+  }
 }
 
 # Cloud-init disks
@@ -28,6 +34,12 @@ resource "libvirt_cloudinit_disk" "node_cloudinit" {
   name      = "${each.value.hostname}-cloudinit.iso"
   pool      = var.storage_pool
   user_data = local.cloud_init_configs[each.key]
+
+  lifecycle {
+    ignore_changes = [
+      user_data
+    ]
+  }
 }
 
 # VM domains
@@ -77,5 +89,13 @@ resource "libvirt_domain" "node" {
       mac            = each.value.mac
       wait_for_lease = true
     }
+  }
+
+  lifecycle {
+    ignore_changes = [
+      cloudinit,
+      memory,
+      vcpu
+    ]
   }
 }
