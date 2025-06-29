@@ -1,5 +1,5 @@
 ansible-builder==3.1.0
-ansible-compat==25.1.2
+ansible-compat==25.6.0
 ansible-core==2.18.2
 ansible-creator==25.0.0
 ansible-dev-environment==25.1.0
