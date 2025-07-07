@@ -31,8 +31,8 @@
       ". $VENV_DIR/bin/activate",
       "uv pip install -r pyproject.toml --all-extras",
       "export ANSIBLE_VAULT_PASSWORD_FILE='./scripts/ansible_vault_password.sh'",
-      "export ANSIBLE_BECOME_PASSWORD=$(skate get ansible_become_password)",
-      "export SUDO_PASS=${ANSIBLE_BECOME_PASSWORD}"
+      "export ANSIBLE_BECOME_PASS=$(skate get ansible_become_password)",
+      "export SUDO_PASS=${ANSIBLE_BECOME_PASS}"
     ],
     "scripts": {
       "install":     "uv pip install -r pyproject.toml --all-extras",
