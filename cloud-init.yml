@@ -1,0 +1,266 @@
+#cloud-config
+
+package_update: true
+package_upgrade: true
+
+packages:
+  # Core libvirt packages
+  - libvirt-daemon-system
+  - libvirt-clients
+  - libvirt-daemon-config-network
+  - libvirt-daemon-config-nwfilter
+
+  # Hypervisor packages
+  - qemu-kvm
+  - qemu-system-x86
+  - qemu-utils
+  - qemu-system-gui
+
+  # Networking packages
+  - bridge-utils
+  - netcat-openbsd
+  - dnsmasq-base
+
+  # Additional useful packages
+  - virt-top
+  - genisoimage
+  - virtinst
+  - cpu-checker
+
+  # Performance packages for QEMU emulation
+  - qemu-guest-agent
+
+groups:
+  - libvirt
+
+users:
+  - name: ubuntu
+    groups: [libvirt, kvm]
+    append: true
+    shell: /bin/bash
+    # Ensure proper user environment
+    system: false
+
+# Create directories and set permissions
+write_files:
+  - path: /etc/libvirt/qemu.conf
+    content: |
+      # Enable user session support
+      user = "root"
+      group = "root"
+      dynamic_ownership = 1
+      remember_owner = 1
+
+      # Force QEMU emulation when KVM is not available
+      # This is needed for environments like OrbStack that don't support nested virtualization
+      security_driver = "none"
+
+      # Allow unsafe cache modes for better performance in virtualized environments
+      allow_disk_format_probing = 1
+    permissions: '0644'
+    owner: root:root
+
+  - path: /etc/libvirt/libvirtd.conf
+    content: |
+      # Listen for unencrypted TCP connections on the public interface
+      listen_tls = 0
+      listen_tcp = 0
+
+      # Override the port for accepting secure TLS connections
+      tls_port = "16514"
+
+      # Override the port for accepting insecure TCP connections
+      tcp_port = "16509"
+
+      # Override the default configuration which binds to all network interfaces
+      listen_addr = "0.0.0.0"
+
+      # Disable mdns advertisement
+      mdns_adv = 0
+
+      # Set the UNIX domain socket group ownership
+      unix_sock_group = "libvirt"
+      unix_sock_ro_perms = "0777"
+      unix_sock_rw_perms = "0770"
+      unix_sock_admin_perms = "0700"
+
+      # Set the UNIX socket directory
+      unix_sock_dir = "/var/run/libvirt"
+
+      # Authentication scheme for UNIX read-only sockets
+      auth_unix_ro = "none"
+
+      # Authentication scheme for UNIX read-write sockets
+      auth_unix_rw = "none"
+
+      # Logging level: 4 errors, 3 warnings, 2 information, 1 debug
+      log_level = 3
+      log_filters="1:qemu 1:libvirt 4:object 4:json 4:event 1:util"
+      log_outputs="1:file:/var/log/libvirt/libvirtd.log"
+    permissions: '0644'
+    owner: root:root
+
+  - path: /etc/systemd/system/libvirtd.service.d/override.conf
+    content: |
+      [Unit]
+      # Fix start-limit-hit issues in containerized environments
+      StartLimitIntervalSec=0
+      StartLimitBurst=5
+
+      [Service]
+      # Add delay to prevent rapid restarts
+      RestartSec=10
+      # Kill any lingering processes
+      ExecStartPre=/bin/bash -c 'pkill -f "dnsmasq.*libvirt" || true'
+      ExecStartPre=/bin/sleep 2
+    permissions: '0644'
+    owner: root:root
+
+  - path: /etc/sysctl.d/99-libvirt.conf
+    content: |
+      # Enable IP forwarding for libvirt networks
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+
+      # Increase the number of available file descriptors
+      fs.file-max = 65536
+
+      # Optimize for virtualized environments
+      vm.swappiness = 1
+      vm.dirty_ratio = 15
+      vm.dirty_background_ratio = 5
+    permissions: '0644'
+    owner: root:root
+
+runcmd:
+  # Try to load KVM modules (will fail in OrbStack/nested environments)
+  - modprobe kvm || echo "KVM module not available - will use QEMU emulation"
+  - modprobe kvm_intel || modprobe kvm_amd || echo "KVM CPU-specific modules not available"
+
+  # Only add modules to load at boot if they're available
+  - |
+    if lsmod | grep -q '^kvm '; then
+      echo 'kvm' >> /etc/modules
+      if lsmod | grep -q '^kvm_intel '; then
+        echo 'kvm_intel' >> /etc/modules
+      elif lsmod | grep -q '^kvm_amd '; then
+        echo 'kvm_amd' >> /etc/modules
+      fi
+    fi
+
+  # Apply sysctl settings
+  - sysctl -p /etc/sysctl.d/99-libvirt.conf
+
+  # Create systemd override directory
+  - mkdir -p /etc/systemd/system/libvirtd.service.d
+
+  # Fix any leftover processes that might interfere with libvirtd
+  - pkill -f dnsmasq || true
+  - systemctl stop libvirtd || true
+  - systemctl reset-failed libvirtd || true
+
+  # Ensure libvirt group exists
+  - groupadd -f libvirt
+  - groupadd -f kvm
+
+  # Add ubuntu user to required groups (redundant but ensures it's done)
+  - usermod -a -G libvirt,kvm ubuntu
+
+  # Set up proper user environment for ubuntu
+  - cp /etc/skel/.profile /home/ubuntu/.profile || true
+  - cp /etc/skel/.bashrc /home/ubuntu/.bashrc || true
+  - chown ubuntu:ubuntu /home/ubuntu/.profile /home/ubuntu/.bashrc || true
+
+  # Ensure ubuntu user has proper shell
+  - chsh -s /bin/bash ubuntu || true
+
+  # Set up libvirt storage pool directory
+  - mkdir -p /var/lib/libvirt/images
+  - chmod 755 /var/lib/libvirt/images
+  - chown -R libvirt-qemu:libvirt-qemu /var/lib/libvirt/images
+
+  # Create log directory
+  - mkdir -p /var/log/libvirt
+  - chmod 755 /var/log/libvirt
+
+  # Enable and start libvirt services with proper timing
+  - systemctl daemon-reload
+  - systemctl disable libvirtd || true
+  - systemctl stop libvirtd || true
+  - sleep 2
+  - systemctl enable libvirtd
+  - systemctl enable virtlogd
+  - systemctl start virtlogd
+  - sleep 3
+  - systemctl start libvirtd
+  - sleep 5
+
+  # Verify libvirtd is running and restart if needed
+  - |
+    if ! systemctl is-active --quiet libvirtd; then
+      echo "libvirtd failed to start, attempting restart..."
+      systemctl restart libvirtd
+      sleep 5
+    fi
+
+  # Start the default network
+  - sleep 5
+  - virsh net-autostart default || true
+  - virsh net-start default || true
+
+  # Create a default storage pool
+  - |
+    if ! virsh pool-info default >/dev/null 2>&1; then
+      virsh pool-define-as default dir --target /var/lib/libvirt/images
+      virsh pool-autostart default
+      virsh pool-start default
+    fi
+
+  # Check KVM capabilities and provide feedback
+  - |
+    if [ -e /dev/kvm ]; then
+      echo "KVM hardware acceleration is available"
+      kvm-ok || true
+    else
+      echo "KVM hardware acceleration not available - using QEMU emulation"
+      echo "This is normal in nested virtualization environments like OrbStack"
+      echo "Performance will be slower but VMs will still function"
+    fi
+  - virt-host-validate qemu || true
+
+  # Fix permissions for the ubuntu user's session
+  - loginctl enable-linger ubuntu || true
+
+  # Final verification and troubleshooting info
+  - |
+    echo "=== Libvirt Setup Verification ==="
+    echo "1. Service Status:"
+    systemctl status libvirtd --no-pager || true
+    echo ""
+    echo "2. Socket Status:"
+    systemctl status libvirtd.socket --no-pager || true
+    echo ""
+    echo "3. User Groups:"
+    groups ubuntu || true
+    echo ""
+    echo "4. Available Networks:"
+    virsh net-list --all || true
+    echo ""
+    echo "5. Storage Pools:"
+    virsh pool-list --all || true
+    echo ""
+    echo "6. KVM Status:"
+    ls -la /dev/kvm 2>/dev/null || echo "/dev/kvm not available (expected in OrbStack)"
+    echo ""
+    echo "=== End Verification ==="
+
+systemd:
+  units:
+    - name: libvirtd.service
+      enabled: true
+      state: started
+    - name: virtlogd.service
+      enabled: true
+      state: started
+
+final_message: "The system is finally up, after $UPTIME seconds"
