@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11, <3.13"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -148,7 +148,7 @@ wheels = [
 
 [[package]]
 name = "ansible-runner"
-version = "2.4.0"
+version = "2.4.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "packaging" },
@@ -156,9 +156,9 @@ dependencies = [
     { name = "python-daemon" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e0/b4/842698d5c17b3cae7948df4c812e01f4199dfb9f35b1c0bb51cf2fe5c246/ansible-runner-2.4.0.tar.gz", hash = "sha256:82d02b2548830f37a53517b65c823c4af371069406c7d213b5c9041d45e0c5b6", size = 148802, upload-time = "2024-05-16T17:55:28.845Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/aa/db/65b9e058807d313c495a6f4365cc11234d0391c5843659ddc27cc4bf1677/ansible_runner-2.4.2.tar.gz", hash = "sha256:331d4da8d784e5a76aa9356981c0255f4bb1ba640736efe84b0bd7c73a4ca420", size = 152047, upload-time = "2025-10-14T19:10:50.159Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/46/44577e2e58de8b9c9398e1ee08b6c697bb2581446209cbfd2639cced66f5/ansible_runner-2.4.0-py3-none-any.whl", hash = "sha256:a3f592ae4cdfa62a72ad15de60da9c8210f376d67f495c4a78d4cf1dc7ccdf89", size = 79678, upload-time = "2024-05-16T17:55:26.474Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/da/19512e72e9cf2b8e7e6345264baa6c7ac1bb0ab128eb19c73a58407c4566/ansible_runner-2.4.2-py3-none-any.whl", hash = "sha256:0bde6cb39224770ff49ccdc6027288f6a98f4ed2ea0c64688b31217033221893", size = 79758, upload-time = "2025-10-14T19:10:48.994Z" },
 ]
 
 [[package]]
@@ -310,7 +310,7 @@ requires-dist = [
     { name = "ansible-dev-tools", specifier = "==25.2.0" },
     { name = "ansible-lint", specifier = "==25.1.2" },
     { name = "ansible-navigator", specifier = "==25.1.0" },
-    { name = "ansible-runner", specifier = "==2.4.0" },
+    { name = "ansible-runner", specifier = "==2.4.2" },
     { name = "ansible-sign", specifier = "==0.1.1" },
     { name = "attrs", specifier = "==25.1.0" },
     { name = "bindep", specifier = "==2.12.0" },
