@@ -7,7 +7,7 @@ ansible-dev-tools==25.2.0
 ansible-lint==25.1.2
 ansible-navigator==25.1.0
 ansible-runner==2.4.0
-ansible-sign==0.1.1
+ansible-sign==0.1.4
 attrs==25.1.0
 bindep==2.12.0
 black==25.1.0
