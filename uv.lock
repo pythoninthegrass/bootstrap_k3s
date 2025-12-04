@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.11, <3.13"
 resolution-markers = [
     "python_full_version >= '3.12'",
@@ -23,7 +23,7 @@ wheels = [
 
 [[package]]
 name = "ansible-compat"
-version = "25.1.2"
+version = "25.12.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "ansible-core" },
@@ -32,9 +32,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "subprocess-tee" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c6/6e/46a414902bc519b08d1c504e034040e2f39c240fe74a1c69b72ba33991ee/ansible_compat-25.1.2.tar.gz", hash = "sha256:0dc51fc1cb35a1dd060ec977290a1290f434bb3e81c864b6375762767c035b25", size = 87902, upload-time = "2025-02-05T10:19:29.05Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/75/62/fb3aee58827ba6eacee561183b02b4a49cf4819f405df2409e23bad69a00/ansible_compat-25.12.0.tar.gz", hash = "sha256:d38a149c5f95bb0d529c3b5e5fa3200b26f5e938ec7c31d8bb01d87c1f634410", size = 193698, upload-time = "2025-12-02T15:36:37.831Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/92/9a213df54bbcc6f9077d8c28f48dabfec648d22c8000839eee865a396e12/ansible_compat-25.1.2-py3-none-any.whl", hash = "sha256:02436ba6011d283aa3346b703f4c6379d4609443d333654a187cec7895787124", size = 25790, upload-time = "2025-02-05T10:19:27.32Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/cb/be446a7db8b7ade13ebea507a7075a1eb8fd900c068c12ceee537a06ae9f/ansible_compat-25.12.0-py3-none-any.whl", hash = "sha256:322ccc7002030a91588d1fdba21e934703d64736f0e483dc6afe8ecd93a75614", size = 27731, upload-time = "2025-12-02T15:36:36.072Z" },
 ]
 
 [[package]]
@@ -303,7 +303,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "ansible-builder", specifier = "==3.1.0" },
-    { name = "ansible-compat", specifier = "==25.1.2" },
+    { name = "ansible-compat", specifier = "==25.12.0" },
     { name = "ansible-core", specifier = "==2.18.2" },
     { name = "ansible-creator", specifier = "==25.0.0" },
     { name = "ansible-dev-environment", specifier = "==25.1.0" },
